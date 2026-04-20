@@ -1,0 +1,46 @@
+.security-module { font-family: sans-serif; color: #333; }
+.security-card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e0e0e0; }
+.security-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.sec-input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; }
+.btn-save { background: #2c5f7c; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; width: 100%; }
+.btn-edit { background: none; border: 1px solid #2c5f7c; color: #2c5f7c; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+
+.protocol-box { background: #f4f7f9; padding: 15px; border-radius: 8px; border: 1px dashed #2c5f7c; margin-top: 10px; }
+.method-item { display: block; width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; background: white; text-align: left; cursor: pointer; border-radius: 5px; }
+.method-item:hover { background: #eef2f5; }
+
+.qr-sim { text-align: center; margin: 15px 0; }
+.qr-code-placeholder { width: 100px; height: 100px; background: #333; color: white; line-height: 100px; margin: 0 auto 10px; font-size: 12px; }
+.code-input { text-align: center; letter-spacing: 5px; font-weight: bold; font-size: 20px; }
+
+.active-shield { color: #27ae60; font-weight: bold; margin-top: 10px; padding: 10px; background: #e8f5e9; border-radius: 5px; }
+.help-list { font-size: 0.85em; color: #666; margin-top: 10px; }
+
+.qr-container {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.qr-frame {
+    background: white;
+    padding: 15px;
+    display: inline-block;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    margin-bottom: 10px;
+}
+
+.qr-instruction {
+    font-size: 0.85em;
+    color: #555;
+    max-width: 250px;
+    margin: 0 auto 15px;
+}
+
+.code-input {
+    text-align: center;
+    letter-spacing: 4px;
+    font-weight: bold;
+    font-size: 1.2em;
+    border: 2px solid #2c5f7c !important;
+}

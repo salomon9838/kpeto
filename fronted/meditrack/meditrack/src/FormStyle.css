@@ -1,0 +1,383 @@
+.form-container {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  width: 2000;
+  max-width: calc(100% - 4cm);
+  margin: 0 2cm;
+  box-sizing: border-box;
+}
+
+.form-container-wide {
+  width: calc(100% - 1cm);
+  max-width: calc(100% - 1cm);
+  margin: 0 0.5cm;
+}
+
+h1 {
+  text-align: left;
+  margin-bottom: 2rem;
+  margin-top: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e40af;
+  letter-spacing: -0.5px;
+}
+
+h2 {
+  text-align: left;
+  margin-bottom: 1.25rem;
+  margin-top: 2rem;
+  color: #22c55e;
+  font-size: 1.25rem;
+  font-weight: 600;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e5f7ed;
+}
+
+input, select, textarea {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s ease;
+  font-size: 0.95rem;
+  background-color: #fff;
+  box-sizing: border-box;
+}
+
+input:hover, select:hover, textarea:hover {
+  border-color: #9ca3af;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #007BFF;
+  box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+  outline: none;
+}
+
+textarea {
+  width: 100%;
+  max-width: 100%;
+  height: 120px;
+  margin: 0 auto;
+  display: block;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+label.required::after {
+  content: " *";
+  color: red;
+  font-weight: bold;
+}
+
+.form-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-grid-4 > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-grid-3 > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-grid-2 > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 0.5rem;
+}
+
+.center input {
+  width: 300px;
+  max-width: 100%;
+}
+
+/* Champ large pour Service, Examen demandé, Région examinée */
+.form-field-wide {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-field-wide label {
+  margin-bottom: 0.5rem;
+}
+
+.form-field-wide input {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.flex-line {
+  display: flex;
+  justify-content: flex-start;
+  gap: 1.5rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.flex-line > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  flex: 1 1 auto;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+button {
+  border: none;
+  padding: 0.875rem 2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  min-width: 140px;
+}
+
+button.cancel {
+  background-color: #D6EFFF;
+  color: #1f2937;
+}
+
+button.cancel:hover {
+  background-color: #b8d9f0;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+button.cancel:active {
+  transform: translateY(0);
+}
+
+button.save {
+  background-color: #007BFF;
+  color: white;
+}
+
+button.save:hover {
+  background-color: #0056b3;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,123,255,0.3);
+}
+
+button.save:active {
+  transform: translateY(0);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .form-container {
+    padding: 1.5rem;
+    margin: 1rem;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.1rem;
+  }
+
+  .form-grid-4,
+  .form-grid-3 {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .flex-line {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .flex-line > div {
+    width: 100%;
+    min-width: unset;
+  }
+
+  input, select, textarea {
+    width: 100%;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .form-container {
+    padding: 1rem;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+  }
+}
+
+/* Styles pour le tableau médical */
+.table-container {
+  overflow-x: auto;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.medical-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.medical-table thead {
+  background-color: #f3f4f6;
+}
+
+.medical-table th {
+  padding: 0.875rem;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.medical-table th:first-child {
+  width: 60%;
+}
+
+.medical-table th:not(:first-child) {
+  text-align: center;
+  width: 20%;
+}
+
+.medical-table td {
+  padding: 0.875rem;
+  border-bottom: 1px solid #e5e7eb;
+  color: #374151;
+}
+
+.medical-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.medical-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.radio-cell {
+  text-align: center;
+}
+
+.radio-cell input[type="radio"] {
+  width: auto;
+  cursor: pointer;
+  accent-color: #007BFF;
+}
+
+/* Styles pour les groupes de radio */
+.radio-group {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+  color: #374151;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.radio-label:hover {
+  background-color: #f3f4f6;
+}
+
+.radio-label input[type="radio"] {
+  width: auto;
+  cursor: pointer;
+  accent-color: #007BFF;
+}
+
+.radio-label span {
+  user-select: none;
+}

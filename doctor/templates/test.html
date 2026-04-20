@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestion simple des produits</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f9;
+      margin: 0;
+      padding: 30px;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.08);
+    }
+
+    h1 {
+      text-align: center;
+      color: #1e3a8a;
+      margin-bottom: 25px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+
+    button {
+      width: 100%;
+      background-color: #2563eb;
+      color: white;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #1d4ed8;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin-top: 25px;
+    }
+
+    li {
+      background: #eef2ff;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .delete-btn {
+      background: crimson;
+      border: none;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      width: auto;
+    }
+
+    .delete-btn:hover {
+      background: darkred;
+    }
+
+    .message {
+      margin-top: 15px;
+      text-align: center;
+      color: green;
+      font-weight: bold;
+    }
+
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Gestion des Produits</h1>
+
+    <input type="text" id="nomProduit" placeholder="Nom du produit" />
+    <input type="number" id="prixProduit" placeholder="Prix du produit" />
+
+    <button onclick="ajouterProduit()">Ajouter Produit</button>
+
+    <p id="message" class="message"></p>
+
+    <ul id="listeProduits"></ul>
+  </div>
+
+  <script>
+    let produits = [];
+
+    function ajouterProduit() {
+      const nom = document.getElementById("nomProduit").value.trim();
+      const prix = document.getElementById("prixProduit").value.trim();
+      const message = document.getElementById("message");
+
+      message.textContent = "";
+      message.classList.remove("error");
+
+      if (nom === "" || prix === "") {
+        message.textContent = "Veuillez remplir tous les champs.";
+        message.classList.add("error");
+        return;
+      }
+
+      const produit = {
+        id: Date.now(),
+        nom: nom,
+        prix: prix
+      };
+
+      produits.push(produit);
+
+      document.getElementById("nomProduit").value = "";
+      document.getElementById("prixProduit").value = "";
+
+      message.textContent = "Produit ajouté avec succès !";
+
+      afficherProduits();
+    }
+
+    function afficherProduits() {
+      const liste = document.getElementById("listeProduits");
+      liste.innerHTML = "";
+
+      produits.forEach(produit => {
+        const li = document.createElement("li");
+
+        li.innerHTML = `
+          <span>${produit.nom} - ${produit.prix} FCFA</span>
+          <button class="delete-btn" onclick="supprimerProduit(${produit.id})">Supprimer</button>
+        `;
+
+        liste.appendChild(li);
+      });
+    }
+
+    function supprimerProduit(id) {
+      produits = produits.filter(produit => produit.id !== id);
+      afficherProduits();
+    }
+  </script>
+
+</body>
+</html>

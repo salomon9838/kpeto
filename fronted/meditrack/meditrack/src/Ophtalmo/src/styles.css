@@ -1,0 +1,250 @@
+:root {
+  --custom-blue: #d6efff;
+  --primary-teal: #009688;
+  --danger-red: #f44336;
+  --medical-red: #d32f2f;
+  --border-color: #e0e0e0;
+  --text-dark: #333;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+body {
+  background-color: var(--custom-blue);
+  color: var(--text-dark);
+  line-height: 1.5;
+}
+
+/* ================= NAVIGATION ================= */
+
+.consult-nav {
+  background: white;
+  display: flex;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.sub-nav-item {
+  padding: 15px 25px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #555;
+  border-bottom: 3px solid transparent;
+  transition: all 0.3s;
+}
+
+.sub-nav-item.active {
+  color: var(--primary-teal);
+  border-bottom: 3px solid var(--primary-teal);
+}
+
+/* ================= CONTAINER & CARD ================= */
+
+.container {
+  max-width: 1200px;
+  margin: 25px auto;
+  padding: 0 20px;
+}
+
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ================= TITRES & SECTIONS ================= */
+
+h2 {
+  margin-bottom: 25px;
+  color: #2c3e50;
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-container {
+  margin-bottom: 50px; /* L'espace considérable entre les blocs */
+}
+
+.medical-title {
+  color: var(--primary-teal);
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-bottom: 20px;
+  border-left: 4px solid var(--primary-teal);
+  padding-left: 10px;
+}
+
+.category-label {
+  color: var(--danger-red);
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-decoration: underline;
+  margin-bottom: 12px;
+  display: block;
+  text-transform: uppercase;
+}
+
+/* ================= FORMULAIRES ================= */
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.star {
+  color: var(--danger-red);
+  font-weight: bold;
+}
+
+input, select, textarea {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  outline-color: var(--primary-teal);
+  width: 100%;
+  transition: border 0.2s;
+}
+
+input:focus, textarea:focus {
+  border-color: var(--primary-teal);
+}
+
+/* Grille Soignant - 4 colonnes */
+.soignant-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 20px;
+}
+
+@media (min-width: 768px) {
+  .soignant-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ================= TABLES ================= */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+}
+
+th, td {
+  padding: 12px;
+  border: 1px solid #f0f0f0;
+  text-align: left;
+}
+
+th {
+  background: #f8fbfb;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+td input {
+  padding: 8px !important;
+  border: 1px solid #eee !important;
+}
+
+/* ================= BOUTONS & TAGS ================= */
+
+.btn-group {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 30px;
+  gap: 15px;
+}
+
+.btn {
+  background-color: var(--custom-blue);
+  color: #2c3e50;
+  padding: 10px 20px;
+  border: 1px solid #b8daff;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: 0.2s;
+}
+
+.btn:hover {
+  background-color: #bde4ff;
+  transform: translateY(-1px);
+}
+
+.btn-send {
+  background-color: #d6efff !important;
+  color: #483d8b !important; /* Texte foncé/violet pour l'envoi patient */
+  border: none !important;
+}
+
+.btn-delete {
+  background: var(--danger-red);
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.tag-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.tag-lab {
+  background-color: white;
+  color: #333;
+  padding: 6px 12px;
+  border: 1px solid #b8daff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: 0.2s;
+}
+
+.tag-lab:hover {
+  background-color: var(--custom-blue);
+}
+
+/* ================= UTILS ================= */
+
+.header-with-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}

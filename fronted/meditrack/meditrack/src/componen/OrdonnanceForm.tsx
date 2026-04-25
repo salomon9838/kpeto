@@ -27,38 +27,69 @@ interface MedicamentRow {
 // =============================================================================
 // COMPOSANT PRINCIPAL
 // =============================================================================
-function Ordonnance() {
+function Ordonnance(): React.ReactElement {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // 🔍 Récupérer consultationId avec fallback
   const [consultationId, setConsultationId] = useState<number | null>(null);
+  const [patientId, setPatientId] = useState<number | null>(null);
+  const [idsLoaded, setIdsLoaded] = useState(false);
 
   useEffect(() => {
-    // Vérifier au montage du composant
-    const id = location.state?.consultationId;
-    console.log('🔍 consultationId reçu:', id);
+    console.log('=== 🔍 DEBUG ORDONNANCE ===');
+    console.log('location.state:', location.state);
     
-    if (!id) {
-      // Essayer de récupérer depuis localStorage (fallback)
-      const storedId = localStorage.getItem('current_consultation_id');
-      if (storedId) {
-        console.log('📦 Récupéré depuis localStorage:', storedId);
-        setConsultationId(Number(storedId));
-      } else {
-        showNotification(
-          'error', 
-          'Consultation manquante', 
-          'Veuillez créer un examen clinique d\'abord.',
-          ['Redirection dans 3 secondes...']
-        );
-        setTimeout(() => navigate('/doctor/exam'), 3000);
+    let cId = location.state?.consultationId;
+    let pId = location.state?.patientId;
+    console.log('📦 Depuis state:', { cId, pId });
+    
+    if (!cId) {
+      const stored = localStorage.getItem('current_consultation_id');
+      if (stored) {
+        cId = Number(stored);
+        console.log('📦 consultationId depuis localStorage:', cId);
       }
-    } else {
-      setConsultationId(Number(id));
-      // Stocker en localStorage pour sécurité
-      localStorage.setItem('current_consultation_id', String(id));
     }
+    if (!pId) {
+      const stored = localStorage.getItem('current_patient_id');
+      if (stored) {
+        pId = Number(stored);
+        console.log('📦 patientId depuis localStorage:', pId);
+      }
+    }
+    
+    console.log('✅ IDs finaux:', { consultationId: cId, patientId: pId });
+    
+    if (!cId || !pId) {
+      console.error('❌ IDs manquants!');
+      showNotification(
+        'error', 
+        'Données manquantes', 
+        'Impossible de trouver la consultation ou le patient.',
+        [
+          `consultationId: ${cId || '❌'}`,
+          `patientId: ${pId || '❌'}`,
+          '🔄 Redirection...'
+        ]
+      );
+      
+      setTimeout(() => {
+        localStorage.removeItem('current_consultation_id');
+        localStorage.removeItem('current_patient_id');
+        navigate('/old-consultation');
+      }, 3000);
+      return;
+    }
+    
+    setConsultationId(cId);
+    setPatientId(pId);
+    setIdsLoaded(true);
+    
+    localStorage.setItem('current_consultation_id', String(cId));
+    localStorage.setItem('current_patient_id', String(pId));
+    
+    console.log('✅ IDs chargés avec succès');
+    
   }, [location.state, navigate]);
 
   const [meds, setMeds] = useState<MedicamentRow[]>([
@@ -66,7 +97,7 @@ function Ordonnance() {
   ]);
 
   const [header, setHeader] = useState({
-    service: "Médecine Générale",
+    service: "Chirurgie",
     centre: "",
     prescripteur: "",
     tel: "",
@@ -77,13 +108,11 @@ function Ordonnance() {
     show: false, type: 'info', title: '', message: '', details: []
   });
 
-  // 🎯 Notification professionnelle
   const showNotification = (type: NotificationType, title: string, message: string, details?: string[]) => {
     setNotification({ show: true, type, title, message, details });
-    setTimeout(() => setNotification(prev => ({ ...prev, show: false })), 6000);
+    setTimeout(() => setNotification(prev => ({ ...prev, show: false })), 7000);
   };
 
-  // 🎨 Styles notification
   const getNotificationStyles = (): React.CSSProperties => {
     const colors: Record<NotificationType, { bg: string; border: string; text: string }> = {
       success: { bg: '#f0fdf4', border: '#22c55e', text: '#166534' },
@@ -95,12 +124,10 @@ function Ordonnance() {
       position: 'fixed', top: '16px', right: '16px', zIndex: 9999,
       padding: '14px 18px', borderRadius: '10px', boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
       borderLeft: `4px solid ${c.border}`, backgroundColor: c.bg, color: c.text,
-      maxWidth: '420px', transition: 'all 0.3s ease',
-      opacity: notification.show ? 1 : 0, transform: notification.show ? 'translateX(0)' : 'translateX(100%)',
+      maxWidth: '450px',
     };
   };
 
-  // 📝 Mise à jour médicaments
   const updateMed = (index: number, field: keyof MedicamentRow, value: string) => {
     setMeds(prev => {
       const newMeds = [...prev];
@@ -110,60 +137,36 @@ function Ordonnance() {
   };
 
   const addRow = () => setMeds([...meds, { med: "", dose: "", quantite: "", duree: "" }]);
-
   const removeRow = (index: number) => {
     if (meds.length > 1) setMeds(meds.filter((_, i) => i !== index));
   };
 
-  // 🔐 Vérif auth + récupération token
   const getAuthToken = (): string | null => {
-    if (typeof window === 'undefined') return null;
     const token = localStorage.getItem('access_token');
     if (!token || token === 'null' || token === 'undefined') return null;
     return token;
   };
 
-  // 💾 Sauvegarde ordonnance + médicaments
   const saveOrdonnance = async () => {
-    // Validation header
     if (!header.centre.trim() || !header.prescripteur.trim() || !header.tel.trim()) {
-      showNotification('error', 'Champs obligatoires', 'Veuillez remplir le centre, le prescripteur et le téléphone.');
+      showNotification('error', 'Champs obligatoires', 'Centre, prescripteur et téléphone requis.');
       return;
     }
 
-    // ✅ Validation médicaments
-    const validMeds = meds.filter(m => {
-      const medOk = m.med?.trim()?.length > 0;
-      const doseOk = m.dose?.trim()?.length > 0;
-      return medOk && doseOk;
-    });
-
+    const validMeds = meds.filter(m => m.med?.trim() && m.dose?.trim());
     if (validMeds.length === 0) {
-      showNotification(
-        'error', 
-        'Médicaments incomplets', 
-        'Chaque médicament doit avoir une désignation ET une posologie.',
-        ['Ajoutez au moins un médicament complet.']
-      );
+      showNotification('error', 'Médicaments incomplets', 'Ajoutez au moins un médicament avec désignation et posologie.');
       return;
     }
 
-    // 🔴 Vérification consultationId
-    if (!consultationId) {
-      showNotification(
-        'error', 
-        'Consultation manquante', 
-        'Aucune consultation liée.',
-        ['Veuillez créer un examen clinique d\'abord.', 'Redirection...']
-      );
-      setTimeout(() => navigate('/doctor/exam'), 3000);
+    if (!consultationId || !patientId) {
+      showNotification('error', 'IDs manquants', 'Consultation ou patient non trouvé.');
       return;
     }
 
     const token = getAuthToken();
     if (!token) {
       showNotification('error', 'Session expirée', 'Veuillez vous reconnecter.');
-      localStorage.removeItem('access_token');
       setTimeout(() => navigate('/login'), 2000);
       return;
     }
@@ -173,74 +176,104 @@ function Ordonnance() {
     try {
       const API_BASE = 'http://localhost:8000/api';
       
-      console.log('📤 Création ordonnance pour consultation:', consultationId);
+      console.log('📤 Création ordonnance:', { consultationId, patientId });
+      console.log('💊 Médicaments à créer:', validMeds);
 
-      // 1️⃣ Créer l'ordonnance
-      const ordonnanceResponse = await fetch(`${API_BASE}/ordonnances/`, {
+      // 1️⃣ Créer l'ordonnance (SANS médicaments)
+      const ordResponse = await fetch(`${API_BASE}/ordonnances/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Token ${token}`,
         },
-        body: JSON.stringify({
+        body: JSON.stringify({ 
           consultation: consultationId,
+          // PAS de champ "medicaments" ici
         }),
       });
 
-      const ordonnanceText = await ordonnanceResponse.text();
-      console.log(`📥 Ordonnance ${ordonnanceResponse.status}:`, ordonnanceText);
+      const ordText = await ordResponse.text();
+      console.log(`📥 Ordonnance ${ordResponse.status}:`, ordText);
 
-      if (ordonnanceResponse.status === 401) {
+      if (ordResponse.status === 401) {
         throw new Error('Session expirée');
       }
-
-      if (!ordonnanceResponse.ok) {
-        throw new Error(ordonnanceText || `Erreur ${ordonnanceResponse.status}`);
+      
+      if (ordResponse.status === 400) {
+        const errorData = JSON.parse(ordText);
+        console.error('❌ Erreur 400:', errorData);
+        throw new Error(Object.values(errorData).flat().join(', ') || 'Données invalides');
+      }
+      
+      if (!ordResponse.ok) {
+        throw new Error(ordText || `Erreur ${ordResponse.status}`);
       }
 
-      const ordonnance = JSON.parse(ordonnanceText);
-      console.log('✅ Ordonnance créée ID:', ordonnance.id);
+      const ordonnance = JSON.parse(ordText);
+      const ordonnanceId = ordonnance.id;
+     console.log('✅ Ordonnance réponse:', ordonnance);
+console.log('🔢 ordonnanceId:', ordonnanceId, typeof ordonnanceId);
 
-      // 2️⃣ Créer les médicaments
-      const medPromises = validMeds.map(med => 
-        fetch(`${API_BASE}/medicaments-prescrits/`, {
+// ✅ VÉRIFICATION CRITIQUE
+if (!ordonnanceId || typeof ordonnanceId !== 'number') {
+  throw new Error(`ordonnanceId invalide: ${ordonnanceId} (type: ${typeof ordonnanceId})`);
+}
+
+console.log('✅ ordonnanceId valide, création des médicaments...');
+      // 2️⃣ Créer les médicaments (un par un)
+      console.log('💊 Création des médicaments...');
+      const medPromises = validMeds.map((med, idx) => {
+        console.log(`  Médicament ${idx + 1}:`, med);
+        return fetch(`${API_BASE}/medicaments-prescrits/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Token ${token}`,
           },
           body: JSON.stringify({
-            ordonnance: ordonnance.id,
+            ordonnance: ordonnanceId,
             designation: med.med.trim(),
             posologie: med.dose.trim(),
             quantite: med.quantite?.trim() || null,
             duree: med.duree?.trim() || null,
           }),
-        }).then(async (res) => {
+        }).then(async res => {
           const text = await res.text();
-          if (!res.ok) throw new Error(text);
+          if (!res.ok) {
+            console.error(`❌ Erreur médicament ${idx + 1}:`, text);
+            throw new Error(text || `Erreur ${res.status}`);
+          }
+          console.log(`  ✅ Médicament ${idx + 1} créé`);
           return JSON.parse(text);
-        })
-      );
+        });
+      });
 
       await Promise.all(medPromises);
-      console.log('✅ Médicaments enregistrés');
+      console.log('✅ Tous les médicaments enregistrés');
+
+      localStorage.setItem('current_ordonnance_id', String(ordonnanceId));
+      localStorage.setItem('current_workflow_step', 'lab');
 
       showNotification(
         'success',
         'Ordonnance validée',
         `${validMeds.length} médicament(s) prescrit(s).`,
-        [`👨‍⚕️ ${header.prescripteur}`, `🏥 ${header.centre}`]
+        [`🆔 #${ordonnanceId}`, `👨‍⚕️ ${header.prescripteur}`]
       );
 
-      // Reset
       setMeds([{ med: "", dose: "", quantite: "", duree: "" }]);
-      setHeader({ service: "Médecine Générale", centre: "", prescripteur: "", tel: "" });
+      setHeader({ service: "Chirurgie", centre: "", prescripteur: "", tel: "" });
 
-      // Redirection vers laboratoire
       setTimeout(() => {
-        navigate('/doctor/lab', {
-          state: { consultationId: consultationId }
+        console.log('🚀 Navigation vers /chirurgie/labo');
+        navigate('/chirurgie/labo', {
+          state: {
+            consultationId,
+            patientId,
+            ordonnanceId,
+            step: 'lab',
+            timestamp: new Date().toISOString()
+          }
         });
       }, 1500);
 
@@ -255,7 +288,7 @@ function Ordonnance() {
   const cancelForm = () => {
     if (confirm("Annuler ?")) {
       setMeds([{ med: "", dose: "", quantite: "", duree: "" }]);
-      setHeader({ service: "Médecine Générale", centre: "", prescripteur: "", tel: "" });
+      setHeader({ service: "Chirurgie", centre: "", prescripteur: "", tel: "" });
     }
   };
 
@@ -265,7 +298,6 @@ function Ordonnance() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f4f7f9", fontFamily: "'Segoe UI', sans-serif", padding: "40px" }}>
       
-      {/* Notification */}
       {notification.show && (
         <div style={getNotificationStyles()}>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -285,31 +317,44 @@ function Ordonnance() {
       <main style={{ maxWidth: "1250px", margin: "0 auto" }}>
         <div style={{ backgroundColor: "white", borderRadius: "12px", padding: "30px", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
           
-          {/* Header */}
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "25px" }}>
-            <Stethoscope size={24} color="#0d9488" />
-            <h2 style={{ fontSize: "20px", fontWeight: 700, margin: 0 }}>Nouvelle Ordonnance</h2>
+            <Stethoscope size={24} color="#e74c3c" />
+            <h2 style={{ fontSize: "20px", fontWeight: 700, margin: 0, color: '#e74c3c' }}>🔪 Ordonnance Chirurgie</h2>
           </div>
           
-          {/* Infos */}
+          {/* Debug IDs */}
+          <div style={{ 
+            background: consultationId && patientId ? '#f0fdf4' : '#fef2f2', 
+            padding: '12px', 
+            borderRadius: '8px', 
+            marginBottom: '20px',
+            fontSize: '13px',
+            border: `2px solid ${consultationId && patientId ? '#22c55e' : '#ef4444'}`
+          }}>
+            <div style={{ fontWeight: '600', marginBottom: '8px' }}>
+              {consultationId && patientId ? '✅ IDs reçus' : '❌ IDs manquants'}
+            </div>
+            <div>Consultation: <strong>{consultationId || '❌'}</strong></div>
+            <div>Patient: <strong>{patientId || '❌'}</strong></div>
+          </div>
+          
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "20px", marginBottom: "30px" }}>
             <InputGroup label="Service" value={header.service} readOnly />
-            <InputGroup label="Centre *" value={header.centre} onChange={(e: any) => setHeader({...header, centre: e.target.value})} placeholder="Clinique" />
-            <InputGroup label="Prescripteur *" value={header.prescripteur} onChange={(e: any) => setHeader({...header, prescripteur: e.target.value})} placeholder="Dr. Nom" />
+            <InputGroup label="Centre *" value={header.centre} onChange={(e: any) => setHeader({...header, centre: e.target.value})} placeholder="Bloc Opératoire" />
+            <InputGroup label="Chirurgien *" value={header.prescripteur} onChange={(e: any) => setHeader({...header, prescripteur: e.target.value})} placeholder="Dr. Nom" />
             <InputGroup label="Téléphone *" value={header.tel} onChange={(e: any) => setHeader({...header, tel: e.target.value})} placeholder="+228..." />
           </div>
 
-          {/* Tableau médicaments */}
           <div style={{ marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h3 style={{ fontSize: "16px", color: "#0d9488", margin: 0 }}>Médicaments</h3>
-            <button onClick={addRow} style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "#0d9488", color: "white", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer" }}>
+            <h3 style={{ fontSize: "16px", color: "#e74c3c", margin: 0 }}>Médicaments</h3>
+            <button onClick={addRow} style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "#e74c3c", color: "white", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer" }}>
               <Plus size={16} /> Ajouter
             </button>
           </div>
 
           <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px" }}>
             <thead>
-              <tr style={{ backgroundColor: "#1e4d6b", color: "white" }}>
+              <tr style={{ backgroundColor: "#7f1d1d", color: "white" }}>
                 <th style={{ padding: "12px", textAlign: "left" }}>Désignation</th>
                 <th style={{ padding: "12px", textAlign: "left" }}>Posologie</th>
                 <th style={{ padding: "12px", textAlign: "left" }}>Quantité</th>
@@ -332,11 +377,24 @@ function Ordonnance() {
             </tbody>
           </table>
 
-          {/* Boutons */}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-            <button onClick={cancelForm} style={{ padding: "10px 24px", backgroundColor: "#f1f5f9", border: "none", borderRadius: "6px", cursor: "pointer" }}>Annuler</button>
-            <button onClick={saveOrdonnance} disabled={loading} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 24px", backgroundColor: loading ? "#94a3b8" : "#1e4d6b", color: "white", border: "none", borderRadius: "6px", cursor: loading ? 'not-allowed' : 'pointer' }}>
-              {loading ? '⏳...' : <><Send size={16} /> Valider</>}
+            <button onClick={cancelForm} disabled={!idsLoaded || loading} style={{ padding: "10px 24px", backgroundColor: "#f1f5f9", border: "none", borderRadius: "6px", cursor: (!idsLoaded || loading) ? 'not-allowed' : 'pointer', opacity: (!idsLoaded || loading) ? 0.6 : 1 }}>Annuler</button>
+            <button 
+              onClick={saveOrdonnance} 
+              disabled={!idsLoaded || loading} 
+              style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: "8px", 
+                padding: "10px 24px", 
+                backgroundColor: (!idsLoaded || loading) ? "#94a3b8" : "#e74c3c", 
+                color: "white", 
+                border: "none", 
+                borderRadius: "6px", 
+                cursor: (!idsLoaded || loading) ? 'not-allowed' : 'pointer' 
+              }}
+            >
+              {loading ? '⏳...' : <><Send size={16} /> Valider → Labo</>}
             </button>
           </div>
         </div>
@@ -351,9 +409,9 @@ function Ordonnance() {
           font-size: 14px;
         }
         .med-input:focus {
-          border-color: #0d9488;
+          border-color: #e74c3c;
           outline: none;
-          box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+          box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
         }
       `}</style>
     </div>
@@ -369,7 +427,7 @@ interface InputGroupProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 const InputGroup = ({ label, ...props }: InputGroupProps) => (
   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-    <label style={{ fontSize: "13px", fontWeight: 600, color: "#0d9488" }}>{label}</label>
+    <label style={{ fontSize: "13px", fontWeight: 600, color: "#e74c3c" }}>{label}</label>
     <input 
       style={{ 
         padding: "10px 14px", 

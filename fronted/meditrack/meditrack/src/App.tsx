@@ -84,6 +84,12 @@ import PharmaChat from './MediPharma/src/Pages/Chat';
 import PharmaSettings from './MediPharma/src/Pages/Settings';
 
 // =============================================================================
+// IMPORTS WORKFLOW (NOUVEAU)
+// =============================================================================
+import PharmacieWorkflow from './components/Pharmacie/PharmacieWorkflow';
+import CaisseWorkflow from './components/Caisse/CaisseWorkflow';
+
+// =============================================================================
 // COMPOSANTS COMMUNS
 // =============================================================================
 import ProgressBar from './components/Common/ProgressBar';
@@ -127,8 +133,6 @@ const SoftPrivateRoute: React.FC<PrivateRouteProps> = ({ children, requiredSpeci
   const userRole = localStorage.getItem('user_role');
   
   // ✅ TOUJOURS afficher la page (pas de redirection automatique)
-  // Les composants peuvent vérifier auth/specialty eux-mêmes
-  
   return <>{children}</>;
 };
 
@@ -360,7 +364,6 @@ export default function App() {
         } />
         
         {/* ==================== ESPACE MÉDECIN (DASHBOARD EN PREMIER) ==================== */}
-        {/* ✅ C'est ici que le médecin arrive APRÈS LOGIN */}
         <Route path="/patient" element={
           <SoftPrivateRoute>
             <PatientLayout>
@@ -369,7 +372,6 @@ export default function App() {
           </SoftPrivateRoute>
         } />
         
-        {/* Nouvelle consultation : Enregistrement patient */}
         <Route path="/new-consultation" element={
           <SoftPrivateRoute>
             <PatientLayout>
@@ -378,7 +380,6 @@ export default function App() {
           </SoftPrivateRoute>
         } />
         
-        {/* Ancienne consultation : Recherche + Historique + Redirection auto vers spécialité */}
         <Route path="/old-consultation" element={
           <SoftPrivateRoute>
             <PatientLayout>
@@ -387,7 +388,6 @@ export default function App() {
           </SoftPrivateRoute>
         } />
         
-        {/* Statistiques */}
         <Route path="/statistics" element={
           <SoftPrivateRoute>
             <PatientLayout>
@@ -396,7 +396,6 @@ export default function App() {
           </SoftPrivateRoute>
         } />
         
-        {/* Paramètres */}
         <Route path="/settings" element={
           <SoftPrivateRoute>
             <PatientLayout>
@@ -405,7 +404,6 @@ export default function App() {
           </SoftPrivateRoute>
         } />
         
-        {/* Profil */}
         <Route path="/profile" element={
           <SoftPrivateRoute>
             <PatientLayout>
@@ -414,7 +412,6 @@ export default function App() {
           </SoftPrivateRoute>
         } />
         
-        {/* Changement mot de passe */}
         <Route path="/password" element={
           <SoftPrivateRoute>
             <PatientLayout>
@@ -422,6 +419,8 @@ export default function App() {
             </PatientLayout>
           </SoftPrivateRoute>
         } />
+
+        
         
         {/* ==================== VÉRIFICATION MÉDECIN + SERVICE ==================== */}
         <Route path="/verify-and-choose-service" element={
@@ -434,11 +433,7 @@ export default function App() {
         <Route path="/doctor/exam" element={
           <SoftPrivateRoute requiredSpecialty="general">
             <ServiceLayout specialty="general" color="#3498db" steps={[
-              '/doctor/exam',
-              '/doctor/ordonnance',
-              '/doctor/lab',
-              '/doctor/radio',
-              '/payement'
+              '/doctor/exam', '/doctor/ordonnance', '/doctor/lab', '/doctor/radio', '/payement'
             ]}>
               <ExamForm />
             </ServiceLayout>
@@ -448,11 +443,7 @@ export default function App() {
         <Route path="/doctor/ordonnance" element={
           <SoftPrivateRoute requiredSpecialty="general">
             <ServiceLayout specialty="general" color="#3498db" steps={[
-              '/doctor/exam',
-              '/doctor/ordonnance',
-              '/doctor/lab',
-              '/doctor/radio',
-              '/payement'
+              '/doctor/exam', '/doctor/ordonnance', '/doctor/lab', '/doctor/radio', '/payement'
             ]}>
               <OrdonnanceForm />
             </ServiceLayout>
@@ -462,11 +453,7 @@ export default function App() {
         <Route path="/doctor/lab" element={
           <SoftPrivateRoute requiredSpecialty="general">
             <ServiceLayout specialty="general" color="#3498db" steps={[
-              '/doctor/exam',
-              '/doctor/ordonnance',
-              '/doctor/lab',
-              '/doctor/radio',
-              '/payement'
+              '/doctor/exam', '/doctor/ordonnance', '/doctor/lab', '/doctor/radio', '/payement'
             ]}>
               <LabForm />
             </ServiceLayout>
@@ -476,11 +463,7 @@ export default function App() {
         <Route path="/doctor/radio" element={
           <SoftPrivateRoute requiredSpecialty="general">
             <ServiceLayout specialty="general" color="#3498db" steps={[
-              '/doctor/exam',
-              '/doctor/ordonnance',
-              '/doctor/lab',
-              '/doctor/radio',
-              '/payement'
+              '/doctor/exam', '/doctor/ordonnance', '/doctor/lab', '/doctor/radio', '/payement'
             ]}>
               <RadioForm />
             </ServiceLayout>
@@ -491,12 +474,7 @@ export default function App() {
         <Route path="/ophtalmo/consultation" element={
           <SoftPrivateRoute requiredSpecialty="ophtalmo">
             <ServiceLayout specialty="ophtalmo" color="#00a896" steps={[
-              '/ophtalmo/consultation',
-              '/ophtalmo/ordonnance',
-              '/ophtalmo/analyse-ophtalmo',
-              '/ophtalmo/labo',
-              '/ophtalmo/radio',
-              '/payement'
+              '/ophtalmo/consultation', '/ophtalmo/ordonnance', '/ophtalmo/analyse-ophtalmo', '/ophtalmo/labo', '/ophtalmo/radio', '/payement'
             ]}>
               <OphtalmoConsultation />
             </ServiceLayout>
@@ -506,12 +484,7 @@ export default function App() {
         <Route path="/ophtalmo/ordonnance" element={
           <SoftPrivateRoute requiredSpecialty="ophtalmo">
             <ServiceLayout specialty="ophtalmo" color="#00a896" steps={[
-              '/ophtalmo/consultation',
-              '/ophtalmo/ordonnance',
-              '/ophtalmo/analyse-ophtalmo',
-              '/ophtalmo/labo',
-              '/ophtalmo/radio',
-              '/payement'
+              '/ophtalmo/consultation', '/ophtalmo/ordonnance', '/ophtalmo/analyse-ophtalmo', '/ophtalmo/labo', '/ophtalmo/radio', '/payement'
             ]}>
               <OphtalmoOrdonnance />
             </ServiceLayout>
@@ -521,12 +494,7 @@ export default function App() {
         <Route path="/ophtalmo/analyse-ophtalmo" element={
           <SoftPrivateRoute requiredSpecialty="ophtalmo">
             <ServiceLayout specialty="ophtalmo" color="#00a896" steps={[
-              '/ophtalmo/consultation',
-              '/ophtalmo/ordonnance',
-              '/ophtalmo/analyse-ophtalmo',
-              '/ophtalmo/labo',
-              '/ophtalmo/radio',
-              '/payement'
+              '/ophtalmo/consultation', '/ophtalmo/ordonnance', '/ophtalmo/analyse-ophtalmo', '/ophtalmo/labo', '/ophtalmo/radio', '/payement'
             ]}>
               <OphtalmoAnalyse />
             </ServiceLayout>
@@ -536,12 +504,7 @@ export default function App() {
         <Route path="/ophtalmo/labo" element={
           <SoftPrivateRoute requiredSpecialty="ophtalmo">
             <ServiceLayout specialty="ophtalmo" color="#00a896" steps={[
-              '/ophtalmo/consultation',
-              '/ophtalmo/ordonnance',
-              '/ophtalmo/analyse-ophtalmo',
-              '/ophtalmo/labo',
-              '/ophtalmo/radio',
-              '/payement'
+              '/ophtalmo/consultation', '/ophtalmo/ordonnance', '/ophtalmo/analyse-ophtalmo', '/ophtalmo/labo', '/ophtalmo/radio', '/payement'
             ]}>
               <OphtalmoLabo />
             </ServiceLayout>
@@ -551,12 +514,7 @@ export default function App() {
         <Route path="/ophtalmo/radio" element={
           <SoftPrivateRoute requiredSpecialty="ophtalmo">
             <ServiceLayout specialty="ophtalmo" color="#00a896" steps={[
-              '/ophtalmo/consultation',
-              '/ophtalmo/ordonnance',
-              '/ophtalmo/analyse-ophtalmo',
-              '/ophtalmo/labo',
-              '/ophtalmo/radio',
-              '/payement'
+              '/ophtalmo/consultation', '/ophtalmo/ordonnance', '/ophtalmo/analyse-ophtalmo', '/ophtalmo/labo', '/ophtalmo/radio', '/payement'
             ]}>
               <OphtalmoRadio />
             </ServiceLayout>
@@ -567,11 +525,7 @@ export default function App() {
         <Route path="/chirurgie/consultation" element={
           <SoftPrivateRoute requiredSpecialty="chirurgie">
             <ServiceLayout specialty="chirurgie" color="#e74c3c" steps={[
-              '/chirurgie/consultation',
-              '/chirurgie/ordonnance',
-              '/chirurgie/labo',
-              '/chirurgie/radio',
-              '/payement'
+              '/chirurgie/consultation', '/chirurgie/ordonnance', '/chirurgie/labo', '/chirurgie/radio', '/payement'
             ]}>
               <ChirurgieExam />
             </ServiceLayout>
@@ -581,11 +535,7 @@ export default function App() {
         <Route path="/chirurgie/ordonnance" element={
           <SoftPrivateRoute requiredSpecialty="chirurgie">
             <ServiceLayout specialty="chirurgie" color="#e74c3c" steps={[
-              '/chirurgie/consultation',
-              '/chirurgie/ordonnance',
-              '/chirurgie/labo',
-              '/chirurgie/radio',
-              '/payement'
+              '/chirurgie/consultation', '/chirurgie/ordonnance', '/chirurgie/labo', '/chirurgie/radio', '/payement'
             ]}>
               <ChirurgieOrdonnance />
             </ServiceLayout>
@@ -595,11 +545,7 @@ export default function App() {
         <Route path="/chirurgie/labo" element={
           <SoftPrivateRoute requiredSpecialty="chirurgie">
             <ServiceLayout specialty="chirurgie" color="#e74c3c" steps={[
-              '/chirurgie/consultation',
-              '/chirurgie/ordonnance',
-              '/chirurgie/labo',
-              '/chirurgie/radio',
-              '/payement'
+              '/chirurgie/consultation', '/chirurgie/ordonnance', '/chirurgie/labo', '/chirurgie/radio', '/payement'
             ]}>
               <ChirurgieLab />
             </ServiceLayout>
@@ -609,11 +555,7 @@ export default function App() {
         <Route path="/chirurgie/radio" element={
           <SoftPrivateRoute requiredSpecialty="chirurgie">
             <ServiceLayout specialty="chirurgie" color="#e74c3c" steps={[
-              '/chirurgie/consultation',
-              '/chirurgie/ordonnance',
-              '/chirurgie/labo',
-              '/chirurgie/radio',
-              '/payement'
+              '/chirurgie/consultation', '/chirurgie/ordonnance', '/chirurgie/labo', '/chirurgie/radio', '/payement'
             ]}>
               <ChirurgieRadio />
             </ServiceLayout>
@@ -624,11 +566,7 @@ export default function App() {
         <Route path="/urologie/consultation" element={
           <SoftPrivateRoute requiredSpecialty="urologie">
             <ServiceLayout specialty="urologie" color="#2980b9" steps={[
-              '/urologie/consultation',
-              '/urologie/ordonnance',
-              '/urologie/labo',
-              '/urologie/radio',
-              '/payement'
+              '/urologie/consultation', '/urologie/ordonnance', '/urologie/labo', '/urologie/radio', '/payement'
             ]}>
               <UrologieExam />
             </ServiceLayout>
@@ -638,11 +576,7 @@ export default function App() {
         <Route path="/urologie/ordonnance" element={
           <SoftPrivateRoute requiredSpecialty="urologie">
             <ServiceLayout specialty="urologie" color="#2980b9" steps={[
-              '/urologie/consultation',
-              '/urologie/ordonnance',
-              '/urologie/labo',
-              '/urologie/radio',
-              '/payement'
+              '/urologie/consultation', '/urologie/ordonnance', '/urologie/labo', '/urologie/radio', '/payement'
             ]}>
               <UrologieOrdonnance />
             </ServiceLayout>
@@ -652,11 +586,7 @@ export default function App() {
         <Route path="/urologie/labo" element={
           <SoftPrivateRoute requiredSpecialty="urologie">
             <ServiceLayout specialty="urologie" color="#2980b9" steps={[
-              '/urologie/consultation',
-              '/urologie/ordonnance',
-              '/urologie/labo',
-              '/urologie/radio',
-              '/payement'
+              '/urologie/consultation', '/urologie/ordonnance', '/urologie/labo', '/urologie/radio', '/payement'
             ]}>
               <UrologieLab />
             </ServiceLayout>
@@ -666,11 +596,7 @@ export default function App() {
         <Route path="/urologie/radio" element={
           <SoftPrivateRoute requiredSpecialty="urologie">
             <ServiceLayout specialty="urologie" color="#2980b9" steps={[
-              '/urologie/consultation',
-              '/urologie/ordonnance',
-              '/urologie/labo',
-              '/urologie/radio',
-              '/payement'
+              '/urologie/consultation', '/urologie/ordonnance', '/urologie/labo', '/urologie/radio', '/payement'
             ]}>
               <UrologieRadio />
             </ServiceLayout>
@@ -681,10 +607,7 @@ export default function App() {
         <Route path="/cardiologie/examen" element={
           <SoftPrivateRoute requiredSpecialty="cardiologie">
             <ServiceLayout specialty="cardiologie" color="#c0392b" steps={[
-              '/cardiologie/examen',
-              '/cardiologie/ordonnance',
-              '/cardiologie/radio',
-              '/payement'
+              '/cardiologie/examen', '/cardiologie/ordonnance', '/cardiologie/radio', '/payement'
             ]}>
               <CardioExam />
             </ServiceLayout>
@@ -694,10 +617,7 @@ export default function App() {
         <Route path="/cardiologie/ordonnance" element={
           <SoftPrivateRoute requiredSpecialty="cardiologie">
             <ServiceLayout specialty="cardiologie" color="#c0392b" steps={[
-              '/cardiologie/examen',
-              '/cardiologie/ordonnance',
-              '/cardiologie/radio',
-              '/payement'
+              '/cardiologie/examen', '/cardiologie/ordonnance', '/cardiologie/radio', '/payement'
             ]}>
               <CardioOrdonnance />
             </ServiceLayout>
@@ -707,10 +627,7 @@ export default function App() {
         <Route path="/cardiologie/radio" element={
           <SoftPrivateRoute requiredSpecialty="cardiologie">
             <ServiceLayout specialty="cardiologie" color="#c0392b" steps={[
-              '/cardiologie/examen',
-              '/cardiologie/ordonnance',
-              '/cardiologie/radio',
-              '/payement'
+              '/cardiologie/examen', '/cardiologie/ordonnance', '/cardiologie/radio', '/payement'
             ]}>
               <CardioRadio />
             </ServiceLayout>
@@ -770,14 +687,6 @@ export default function App() {
           </SoftPrivateRoute>
         } />
         
-        <Route path="/pharmacie/dashboard" element={
-          <SoftPrivateRoute>
-            <PharmaLayout>
-              <PharmaDashboard />
-            </PharmaLayout>
-          </SoftPrivateRoute>
-        } />
-        
         <Route path="/pharmacie/inventory" element={
           <SoftPrivateRoute>
             <PharmaLayout>
@@ -810,11 +719,26 @@ export default function App() {
           </SoftPrivateRoute>
         } />
         
+        {/* ==================== WORKFLOW PHARMACIE/CAISSE (NOUVEAU) ==================== */}
+        <Route path="/pharmacie/dashboard" element={
+          <SoftPrivateRoute>
+            <PharmaLayout>
+              <PharmacieWorkflow />
+            </PharmaLayout>
+          </SoftPrivateRoute>
+        } />
+        
+        <Route path="/caisse" element={
+          <SoftPrivateRoute>
+            <div style={{ minHeight: '100vh', background: '#f4f7f6' }}>
+              <CaisseWorkflow />
+            </div>
+          </SoftPrivateRoute>
+        } />
+        
         {/* ==================== REDIRECTIONS PAR DÉFAUT ==================== */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/select-service" element={<Navigate to="/patient" replace />} />
-        
-        {/* ✅ CATCH-ALL : Redirige vers /login UNIQUEMENT si route inconnue */}
         <Route path="*" element={<Navigate to="/login" replace />} />
         
       </Routes>

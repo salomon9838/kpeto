@@ -49,7 +49,7 @@ const getHeaders = (isFormData: boolean = false): Record<string, string> => {
   }
   
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers['Authorization'] = `Token ${token}`;
   }
   
   return headers;

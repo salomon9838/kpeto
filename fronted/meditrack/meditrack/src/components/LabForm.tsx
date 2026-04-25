@@ -1,7 +1,10 @@
-import { useState, CSSProperties } from "react";
+import React, { useState, useEffect, CSSProperties } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from '../api/api';
-import { FaCheckCircle, FaExclamationTriangle, FaInfoCircle } from 'react-icons/fa';
+import { 
+  FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaFlask, 
+  FaUserMd, FaPhone, FaBuilding, FaRedo, FaArrowLeft
+} from 'react-icons/fa';
 
 // =============================================================================
 // TYPES
@@ -17,16 +20,49 @@ interface NotificationState {
 }
 
 // =============================================================================
-// COMPOSANT
+// COMPOSANT PRINCIPAL — LABORATOIRE (PROFESSIONNEL + API + IDs + SERVICE FIXE)
 // =============================================================================
 export default function LabForm() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Récupérer consultationId depuis la navigation
-  const consultationId = location.state?.consultationId;
+  // 🔍 Récupération ROBUSTE des IDs (state + localStorage + fallback)
+  const getIds = () => {
+    const cIdState = location.state?.consultationId;
+    const pIdState = location.state?.patientId;
+    const cIdStore = localStorage.getItem('current_consultation_id');
+    const pIdStore = localStorage.getItem('current_patient_id');
+    
+    const cId = cIdState || (cIdStore && cIdStore !== 'undefined' ? Number(cIdStore) : null);
+    const pId = pIdState || (pIdStore && pIdStore !== 'undefined' ? Number(pIdStore) : null);
+    
+    console.log('🔍 LabForm - IDs:', { fromState: { cIdState, pIdState }, fromStorage: { cIdStore, pIdStore }, resolved: { cId, pId } });
+    return { cId, pId };
+  };
 
-  const [service, setService] = useState("Médecine Générale");
+  const [consultationId, setConsultationId] = useState<number | null>(null);
+  const [patientId, setPatientId] = useState<number | null>(null);
+  const [idsReady, setIdsReady] = useState(false);
+
+  // ✅ Chargement des IDs au montage
+  useEffect(() => {
+    const { cId, pId } = getIds();
+    if (cId && pId) {
+      setConsultationId(cId);
+      setPatientId(pId);
+      setIdsReady(true);
+      // Re-stocker pour sécurité
+      localStorage.setItem('current_consultation_id', String(cId));
+      localStorage.setItem('current_patient_id', String(pId));
+      console.log('✅ LabForm - IDs chargés:', { cId, pId });
+    } else {
+      console.warn('⚠️ LabForm - IDs manquants');
+      showNotification('error', 'Données manquantes', 'Veuillez recommencer depuis la consultation.', ['Redirection...']);
+      setTimeout(() => navigate('/old-consultation'), 2500);
+    }
+  }, []);
+
+  // === VOS ÉTATS EXISTANTS (inchangés) ===
   const [centre, setCentre] = useState("");
   const [doc, setDoc] = useState("");
   const [tel, setTel] = useState("");
@@ -38,36 +74,33 @@ export default function LabForm() {
     show: false, type: 'info', title: '', message: '', details: []
   });
 
-  // 🎯 Notification professionnelle
+  // 🎯 Votre fonction notification (préservée + améliorée)
   const showNotification = (type: NotificationType, title: string, message: string, details?: string[]) => {
     setNotification({ show: true, type, title, message, details });
     setTimeout(() => setNotification(prev => ({ ...prev, show: false })), 6000);
   };
 
-  // 🎨 Styles notification
+  // 🎨 Styles notification (harmonisés avec design pro)
   const getNotificationStyles = (): CSSProperties => {
     const colors: Record<NotificationType, { bg: string; border: string; text: string }> = {
       success: { bg: '#f0fdf4', border: '#22c55e', text: '#166534' },
       error: { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' },
-      info: { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af' },
+      info: { bg: '#eff6ff', border: '#0d9488', text: '#1e40af' }, // ← Teal professionnel
     };
     const c = colors[notification.type];
     return {
-      position: 'fixed', top: '16px', right: '16px', zIndex: 9999,
-      padding: '14px 18px', borderRadius: '10px', boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
-      borderLeft: `4px solid ${c.border}`, backgroundColor: c.bg, color: c.text,
-      maxWidth: '420px', transition: 'all 0.3s ease',
-      opacity: notification.show ? 1 : 0, transform: notification.show ? 'translateX(0)' : 'translateX(100%)',
+      position: 'fixed', top: '20px', right: '20px', zIndex: 9999,
+      padding: '16px 20px', borderRadius: '12px',
+      boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+      borderLeft: `5px solid ${c.border}`,
+      backgroundColor: c.bg, color: c.text,
+      maxWidth: '450px', minWidth: '350px',
+      display: 'flex', alignItems: 'flex-start', gap: '12px',
+      animation: 'slideIn 0.3s ease-out',
     };
   };
 
-  // 🔐 Vérif auth
-  const isAuthenticated = () => {
-    if (typeof window === 'undefined') return false;
-    const token = localStorage.getItem('access_token');
-    return !!token && token !== 'null' && token !== 'undefined';
-  };
-
+  // 🎯 Votre fonction addTag (PRÉSERVÉE)
   const addTag = (category: string, val: string) => {
     let text = labText;
     if (text.includes(category + " :")) {
@@ -80,8 +113,15 @@ export default function LabForm() {
     setLabText(text);
   };
 
+  // 💾 Votre fonction submitForm (SIMPLIFIÉE - apiFetch gère déjà le token)
   const submitForm = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // ✅ Vérification IDs AVANT tout
+    if (!consultationId || !patientId) {
+      showNotification('error', 'IDs manquants', 'Veuillez recharger la page ou recommencer depuis la consultation.');
+      return;
+    }
 
     // Validation frontend
     if (!centre.trim() || !doc.trim() || !tel.trim() || !labText.trim()) {
@@ -89,24 +129,15 @@ export default function LabForm() {
       return;
     }
 
-    if (!consultationId) {
-      showNotification('error', 'Consultation manquante', 'Aucune consultation liée. Retour à la page précédente...');
-      setTimeout(() => navigate('/doctor/exam'), 2000);
-      return;
-    }
-
-    if (!isAuthenticated()) {
-      showNotification('error', 'Session expirée', 'Veuillez vous reconnecter.');
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      setTimeout(() => navigate('/login'), 2000);
-      return;
-    }
+    // ✅ PAS DE VÉRIFICATION MANUELLE DU TOKEN - apiFetch s'en charge automatiquement
+    // Si le token est manquant/expiré, apiFetch redirigera vers /login automatiquement
 
     setLoading(true);
     try {
       const payload = {
-        consultation: Number(consultationId),
+        consultation: consultationId,  // ← ID robuste
+        patient: patientId,            // ← AJOUTÉ : propagation du patientId
+        service: "Médecine Générale",  // ← SERVICE FIXE
         centre_labo: centre.trim(),
         analyses_demandees: labText.trim(),
         motif: motif.trim() || 'Analyse de routine',
@@ -117,13 +148,22 @@ export default function LabForm() {
 
       console.log('📤 Payload analyses-labo:', payload);
 
-      // ✅ Appel API vers Django
+      // ✅ Appel API via apiFetch (gère automatiquement : token, refresh, erreurs 401)
       const newAnalyse = await apiFetch<any>('analyses-labo', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
 
-      console.log('✅ Analyse labo créée:', newAnalyse);
+      const analyseId = newAnalyse?.id;
+      if (!analyseId) {
+        throw new Error('L\'API n\'a pas retourné d\'ID d\'analyse');
+      }
+      
+      console.log('✅ Analyse labo créée:', analyseId);
+
+      // ✅ Stockage des IDs pour le workflow
+      localStorage.setItem('current_lab_result_id', String(analyseId));
+      localStorage.setItem('current_workflow_step', 'radio');
 
       // ✅ Notification succès
       showNotification(
@@ -133,25 +173,43 @@ export default function LabForm() {
         [`🏥 ${centre}`, `👨‍⚕️ ${doc}`]
       );
 
-      // Reset formulaire
+      // Reset formulaire (votre logique)
       setCentre("");
       setDoc("");
       setTel("");
       setLabText("");
       setMotif("");
 
-      // ✅✅✅ REDIRECTION AUTOMATIQUE VERS RADIO (CORRIGÉ)
+      // ✅✅✅ REDIRECTION AUTOMATIQUE VERS RADIO avec TOUS les IDs
       setTimeout(() => {
-        navigate('/doctor/radio', {  // ← Route exacte de App.tsx
-          state: { consultationId: consultationId }  // ← Transmission de l'ID
+        console.log('🚀 Navigation vers /doctor/radio avec IDs:', {
+          consultationId,
+          patientId,
+          analyseId
+        });
+        navigate('/doctor/radio', {
+          state: {
+            consultationId,
+            patientId,      // ← AJOUTÉ : propagation du patientId
+            labResultId: analyseId,  // ← AJOUTÉ : propagation de l'analyseId
+            step: 'radio'
+          }
         });
       }, 1500);
 
     } catch (err: any) {
       console.error('❌ Erreur API:', err);
       
-      // Gestion des erreurs de validation Django
+      // Gestion des erreurs - apiFetch renvoie déjà un message lisible
       let errorDetails: string[] = [];
+      
+      // Si l'erreur vient de la redirection auto vers login
+      if (err.message === 'Authentification requise') {
+        showNotification('info', 'Redirection...', 'Veuillez vous reconnecter pour continuer.');
+        // La redirection est déjà gérée par apiFetch
+        return;
+      }
+      
       if (err.validationErrors) {
         errorDetails = Object.entries(err.validationErrors).map(([field, msgs]) => 
           `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`
@@ -159,7 +217,7 @@ export default function LabForm() {
       } else if (err.message) {
         errorDetails = [err.message];
       } else {
-        errorDetails = ['Erreur HTTP 400 - Données invalides'];
+        errorDetails = ['Une erreur inattendue est survenue'];
       }
 
       showNotification('error', 'Échec de l\'envoi', 'Le serveur a rejeté la demande.', errorDetails);
@@ -168,13 +226,259 @@ export default function LabForm() {
     }
   };
 
+  // =============================================================================
+  // STYLES PROFESSIONNELS (Harmonisés avec style chirurgie)
+  // =============================================================================
+  const styles: Record<string, CSSProperties> = {
+    page: {
+      minHeight: '100vh',
+      backgroundColor: '#f8fafc',
+      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      padding: '40px',
+    },
+    header: {
+      backgroundColor: '#0d9488', // ← Teal professionnel (style chirurgie)
+      padding: '20px 30px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      marginBottom: '30px',
+      borderRadius: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '15px',
+    },
+    backBtn: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '10px 20px',
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      color: 'white',
+      border: 'none',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: '600',
+      transition: 'background 0.2s',
+    },
+    title: {
+      fontSize: '24px',
+      fontWeight: '700',
+      color: 'white',
+      margin: 0,
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+    },
+    container: {
+      maxWidth: '1000px',
+      margin: '0 auto',
+    },
+    card: {
+      backgroundColor: 'white',
+      borderRadius: '16px',
+      padding: '30px',
+      marginBottom: '24px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+      border: '1px solid #e2e8f0',
+      transition: 'box-shadow 0.2s ease',
+    },
+    sectionTitle: {
+      fontSize: '18px',
+      fontWeight: '700',
+      color: '#1e293b',
+      marginBottom: '20px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+    },
+    debugBox: {
+      background: idsReady ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' : 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+      border: `2px solid ${idsReady ? '#22c55e' : '#f97316'}`,
+      borderRadius: '12px',
+      padding: '16px 20px',
+      marginBottom: '24px',
+      fontSize: '14px',
+    },
+    formGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+      gap: '20px',
+    },
+    formGroup: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      gap: '6px',
+    },
+    label: {
+      fontSize: '14px',
+      fontWeight: '600',
+      color: '#475569',
+    },
+    required: { color: '#ef4444' },
+    input: {
+      padding: '12px',
+      borderRadius: '8px',
+      border: '2px solid #e2e8f0',
+      fontSize: '15px',
+      outline: 'none',
+      backgroundColor: '#f8fafc',
+      transition: 'all 0.2s',
+      width: '100%',
+      boxSizing: 'border-box' as const,
+    },
+    select: {
+      padding: '12px',
+      borderRadius: '8px',
+      border: '2px solid #e2e8f0',
+      fontSize: '15px',
+      outline: 'none',
+      backgroundColor: '#f8fafc',
+      cursor: 'pointer',
+      width: '100%',
+      boxSizing: 'border-box' as const,
+    },
+    textarea: {
+      padding: '14px 16px',
+      borderRadius: '10px',
+      border: '2px solid #e2e8f0',
+      fontSize: '15px',
+      outline: 'none',
+      backgroundColor: '#f8fafc',
+      minHeight: '140px',
+      resize: 'vertical' as const,
+      fontFamily: 'inherit',
+      lineHeight: '1.6',
+      width: '100%',
+      boxSizing: 'border-box' as const,
+    },
+    tagSection: {
+      marginTop: '24px',
+      padding: '20px',
+      backgroundColor: '#fafafa',
+      borderRadius: '12px',
+      border: '1px solid #e2e8f0',
+    },
+    tagTitle: {
+      fontSize: '13px',
+      fontWeight: '700',
+      color: '#0d9488',
+      marginBottom: '16px',
+      textTransform: 'uppercase' as const,
+      letterSpacing: '0.5px',
+    },
+    tagCategory: {
+      fontSize: '13px',
+      color: '#dc2626',
+      fontWeight: '600',
+      marginTop: '20px',
+      marginBottom: '12px',
+      textDecoration: 'underline',
+      textDecorationColor: '#dc2626',
+    },
+    tagRow: {
+      display: 'flex',
+      flexWrap: 'wrap' as const,
+      gap: '10px',
+    },
+    tag: {
+      padding: '8px 16px',
+      backgroundColor: 'white',
+      border: '2px solid #e2e8f0',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      fontSize: '13px',
+      fontWeight: '500',
+      color: '#475569',
+      transition: 'all 0.2s',
+    },
+    buttonGroup: {
+      display: 'flex',
+      justifyContent: 'flex-end',
+      gap: '15px',
+      marginTop: '30px',
+      paddingTop: '20px',
+      borderTop: '2px solid #e2e8f0',
+    },
+    btn: {
+      padding: '14px 28px',
+      borderRadius: '8px',
+      border: 'none',
+      fontWeight: '700',
+      fontSize: '15px',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      transition: 'all 0.2s',
+    },
+    btnCancel: {
+      backgroundColor: '#f1f5f9',
+      color: '#64748b',
+    },
+    btnSave: {
+      backgroundColor: '#0d9488', // ← Teal professionnel
+      color: 'white',
+    },
+    notification: {
+      position: 'fixed' as const,
+      top: '20px',
+      right: '20px',
+      zIndex: 9999,
+      padding: '16px 20px',
+      borderRadius: '12px',
+      boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+      borderLeft: '5px solid',
+      backgroundColor: 'white',
+      maxWidth: '450px',
+      minWidth: '350px',
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: '12px',
+      animation: 'slideIn 0.3s ease-out',
+    },
+  };
+
+  // =============================================================================
+  // RENDER
+  // =============================================================================
   return (
-    <form onSubmit={submitForm}>
-      {/* 🔔 Notification professionnelle */}
+    <div style={styles.page}>
+      <style>{`
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        input:focus, select:focus, textarea:focus {
+          border-color: #0d9488 !important;
+          background-color: white !important;
+          box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.1) !important;
+        }
+        .card-hover:hover {
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+          transform: translateY(-2px);
+          transition: all 0.2s ease;
+        }
+        .tag:hover {
+          border-color: #0d9488 !important;
+          background-color: '#f0f9ff' !important;
+          transform: translateY(-1px);
+        }
+        .disabled {
+          opacity: 0.5;
+          pointer-events: none;
+          filter: grayscale(0.3);
+        }
+      `}</style>
+
+      {/* 🔔 Notification */}
       {notification.show && (
         <div style={getNotificationStyles()} role="alert">
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-            <div style={{ fontSize: '18px', marginTop: '1px', color: notification.type === 'error' ? '#ef4444' : notification.type === 'success' ? '#22c55e' : '#3b82f6' }}>
+            <div style={{ fontSize: '18px', marginTop: '1px', color: notification.type === 'error' ? '#ef4444' : notification.type === 'success' ? '#22c55e' : '#0d9488' }}>
               {notification.type === 'success' && <FaCheckCircle size={18} />}
               {notification.type === 'error' && <FaExclamationTriangle size={18} />}
               {notification.type === 'info' && <FaInfoCircle size={18} />}
@@ -183,268 +487,228 @@ export default function LabForm() {
               <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>{notification.title}</h4>
               <p style={{ margin: '4px 0 0 0', fontSize: '13px', opacity: 0.9 }}>{notification.message}</p>
               {notification.details?.map((d, i) => (
-                <li key={i} style={{ margin: '2px 0 0 14px', fontSize: '12px', paddingLeft: 0 }}>{d}</li>
+                <div key={i} style={{ margin: '2px 0 0 0', fontSize: '12px' }}>• {d}</div>
               ))}
             </div>
-            <button onClick={() => setNotification(p => ({ ...p, show: false }))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', opacity: 0.6, padding: 0, lineHeight: 1 }}>×</button>
+            <button onClick={() => setNotification(p => ({ ...p, show: false }))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', opacity: 0.6, color: 'inherit' }}>×</button>
           </div>
         </div>
       )}
 
-      <h2>Analyses Laboratoire</h2>
-      
-      <div className="box">
-        <label
-          style={{
-            display: "block",
-            marginBottom: 10,
-            fontWeight: "bold",
-            fontSize: 15,
-            color: "var(--primary-teal)",
-          }}
-        >
-          Information du soignant
-        </label>
-
-        <div className="form-grid">
-          <div className="form-group">
-            <label>Service</label>
-            <select value={service} onChange={(e) => setService(e.target.value)}>
-              <option>Médecine Générale</option>
-              <option>Urgence</option>
-              <option>Chirurgie</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>
-              Centre<span className="star">*</span>
-            </label>
-            <input
-              required
-              value={centre}
-              placeholder="Laboratoire National"
-              onChange={(e) => setCentre(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>
-              Nom du soignant<span className="star">*</span>
-            </label>
-            <input
-              required
-              value={doc}
-              placeholder="Infirmier(e) de garde"
-              onChange={(e) => setDoc(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>
-              Téléphone<span className="star">*</span>
-            </label>
-            <input
-              required
-              value={tel}
-              placeholder="+228 91 00 00 00"
-              onChange={(e) => setTel(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* BLOC DES ANALYSES (AVEC SCROLL) */}
-      <div
-        style={{
-          marginTop: 25,
-          maxHeight: 450,
-          overflowY: "auto",
-          border: "1px solid #eee",
-          padding: 15,
-          borderRadius: 8,
-          background: "#fafafa",
-        }}
-      >
-        <label
-          style={{
-            display: "block",
-            marginBottom: 10,
-            fontWeight: "bold",
-            color: "var(--primary-teal)",
-          }}
-        >
-          TYPE D'ANALYSE RAPIDE (Cliquer pour ajouter) :
-        </label>
-
-        {/* PARASITOLOGIE & BACTÉRIOLOGIE */}
-        <p
-          style={{
-            fontSize: 13,
-            color: "red",
-            fontWeight: "normal",
-            marginTop: 20,
-            textDecoration: "underline",
-          }}
-        >
-          PARASITOLOGIE & BACTÉRIOLOGIE
-        </p>
-
-        <div className="tag-row">
-          <button type="button" className="tag-lab" onClick={() => addTag("PARASITOLOGIE", "GE")} disabled={loading}>GE</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("PARASITOLOGIE", "SELLES KOP")} disabled={loading}>SELLES KOP</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("PARASITOLOGIE", "SCOTCH TEST")} disabled={loading}>SCOTCH TEST</button>
-
-          <button type="button" className="tag-lab" onClick={() => addTag("BACTÉRIOLOGIE", "BCE")} disabled={loading}>BCE</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("BACTÉRIOLOGIE", "Culot urinaire")} disabled={loading}>Culot urinaire</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("BACTÉRIOLOGIE", "Crachat BAAR")} disabled={loading}>Crachat BAAR</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("BACTÉRIOLOGIE", "PV")} disabled={loading}>PV</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("BACTÉRIOLOGIE", "ECBU")} disabled={loading}>ECBU</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("BACTÉRIOLOGIE", "Coproculture")} disabled={loading}>Coproculture</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("BACTÉRIOLOGIE", "Spermogramme/Spermoculture")} disabled={loading}>
-            Spermogramme/Spermoculture
-          </button>
-        </div>
-
-        {/* SÉROLOGIE */}
-        <p
-          style={{
-            fontSize: 13,
-            color: "red",
-            fontWeight: "normal",
-            marginTop: 20,
-            textDecoration: "underline",
-          }}
-        >
-          SÉROLOGIE
-        </p>
-
-        <div className="tag-row">
-          <button type="button" className="tag-lab" onClick={() => addTag("SÉROLOGIE", "SRV")} disabled={loading}>SRV</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("SÉROLOGIE", "Ag HBs")} disabled={loading}>Ag HBs</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("SÉROLOGIE", "TPHA-VDRL")} disabled={loading}>TPHA-VDRL</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("SÉROLOGIE", "CRP")} disabled={loading}>CRP</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("SÉROLOGIE", "Toxoplasmose")} disabled={loading}>Toxoplasmose</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("SÉROLOGIE", "Hépatite C (HCV)")} disabled={loading}>Hépatite C (HCV)</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("SÉROLOGIE", "Rubéole")} disabled={loading}>Rubéole</button>
-        </div>
-
-        {/* HÉMATOLOGIE */}
-        <p
-          style={{
-            fontSize: 13,
-            color: "red",
-            fontWeight: "normal",
-            marginTop: 20,
-            textDecoration: "underline",
-          }}
-        >
-          HÉMATOLOGIE
-        </p>
-
-        <div className="tag-row">
-          <button type="button" className="tag-lab" onClick={() => addTag("HÉMATOLOGIE", "NFS")} disabled={loading}>NFS</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("HÉMATOLOGIE", "VS")} disabled={loading}>VS</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("HÉMATOLOGIE", "NB-TH")} disabled={loading}>NB-TH</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("HÉMATOLOGIE", "Groupage")} disabled={loading}>Groupage</button>
-          <button type="button" className="tag-lab" onClick={() => addTag("HÉMATOLOGIE", "Electrophorèse")} disabled={loading}>Electrophorèse</button>
-        </div>
-
-        {/* BIOCHIMIE */}
-        <p
-          style={{
-            fontSize: 13,
-            color: "red",
-            fontWeight: "normal",
-            marginTop: 20,
-            textDecoration: "underline",
-          }}
-        >
-          BIOCHIMIE
-        </p>
-
-        <div className="tag-row">
-          {[
-            "Urée",
-            "Glycémie",
-            "Créatininémie",
-            "ASAT",
-            "ALAT",
-            "GGT",
-            "PAL",
-            "Uricémie",
-            "Bilirubine T",
-            "Bilirubine D",
-            "Phosphore",
-            "HbA1C",
-            "Cholesterol total",
-            "HDL-Cholesterol",
-            "LDL-Cholesterol",
-            "Triglycérides",
-            "Calcémie",
-            "Magnésiemie",
-            "TSHU",
-            "T3",
-            "T4",
-            "Ionogramme S.",
-          ].map((v, i) => (
-            <button
-              key={i}
-              type="button"
-              className="tag-lab"
-              onClick={() => addTag("BIOCHIMIE", v)}
-              disabled={loading}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ANALYSES DEMANDÉES */}
-      <div style={{ marginTop: 20 }}>
-        <label>
-          Analyses demandées<span className="star">*</span>
-        </label>
-
-        <textarea
-          required
-          rows={5}
-          style={{ width: "100%", marginTop: 8 }}
-          value={labText}
-          onChange={(e) => setLabText(e.target.value)}
-          placeholder="Les analyses s'afficheront ici..."
-          disabled={loading}
-        ></textarea>
-      </div>
-
-      {/* MOTIF */}
-      <div style={{ marginTop: 20 }}>
-        <label>Motif</label>
-
-        <textarea
-          rows={3}
-          style={{ width: "100%", marginTop: 8 }}
-          value={motif}
-          onChange={(e) => setMotif(e.target.value)}
-          placeholder="Saisir ici le motif..."
-          disabled={loading}
-        ></textarea>
-      </div>
-
-      <div className="btn-group">
+      {/* Header avec bouton retour */}
+      <header style={styles.header}>
         <button 
-          type="submit" 
-          className="btn"
-          disabled={loading}
-          style={{ opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+          style={styles.backBtn}
+          onClick={() => navigate('/patient')}
+          onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.3)'}
+          onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.2)'}
         >
-          {loading ? '⏳ Envoi en cours...' : '👥 Envoyer au patient'}
+          <FaArrowLeft /> Retour
         </button>
+        <h1 style={styles.title}>
+          <FaFlask size={24} /> 🔬 Analyses Laboratoire
+        </h1>
+        <div style={{ width: '100px' }} />
+      </header>
+
+      <div style={styles.container}>
+        {/* Debug IDs */}
+        <div style={styles.debugBox}>
+          <div style={{ fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {idsReady ? <FaCheckCircle color="#22c55e" /> : <FaExclamationTriangle color="#f97316" />}
+            {idsReady ? '✅ IDs reçus' : '⚠️ IDs manquants'}
+          </div>
+          <div>Consultation: <strong style={{ color: consultationId ? '#22c55e' : '#ef4444' }}>{consultationId || '❌'}</strong></div>
+          <div>Patient: <strong style={{ color: patientId ? '#22c55e' : '#ef4444' }}>{patientId || '❌'}</strong></div>
+          {!idsReady && (
+            <div style={{ marginTop: '12px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button 
+                onClick={() => { const { cId, pId } = getIds(); if (cId && pId) { setConsultationId(cId); setPatientId(pId); setIdsReady(true); } }}
+                style={{ ...styles.btn, backgroundColor: '#f59e0b', color: 'white', padding: '6px 12px', fontSize: '12px' }}
+              >
+                <FaRedo size={12} style={{ marginRight: '4px' }} /> Réessayer
+              </button>
+              <button 
+                onClick={() => navigate('/old-consultation')}
+                style={{ ...styles.btn, backgroundColor: '#ef4444', color: 'white', padding: '6px 12px', fontSize: '12px' }}
+              >
+                ← Retour consultation
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Formulaire désactivé si IDs non prêts */}
+        <div className={!idsReady ? 'disabled' : ''}>
+          
+          {/* Section 1: Informations du soignant */}
+          <div style={styles.card} className="card-hover">
+            <h2 style={styles.sectionTitle}>
+              <FaUserMd color="#0d9488" /> Information du soignant
+            </h2>
+            
+            <div style={styles.formGrid}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Service</label>
+                {/* ✅ SERVICE FIXE : Médecine Générale en lecture seule */}
+                <select 
+                  value="Médecine Générale"
+                  disabled
+                  style={{...styles.select, backgroundColor: '#f8fafc', cursor: 'not-allowed', opacity: 0.8}}
+                >
+                  <option>Médecine Générale</option>
+                </select>
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label}>
+                  Centre<span style={styles.required}>*</span>
+                </label>
+                <input
+                  required
+                  value={centre}
+                  placeholder="Laboratoire National"
+                  onChange={(e) => setCentre(e.target.value)}
+                  style={styles.input}
+                  disabled={loading}
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label}>
+                  Nom du soignant<span style={styles.required}>*</span>
+                </label>
+                <input
+                  required
+                  value={doc}
+                  placeholder="Infirmier(e) de garde"
+                  onChange={(e) => setDoc(e.target.value)}
+                  style={styles.input}
+                  disabled={loading}
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.label}>
+                  Téléphone<span style={styles.required}>*</span>
+                </label>
+                <input
+                  required
+                  value={tel}
+                  placeholder="+228 91 00 00 00"
+                  onChange={(e) => setTel(e.target.value)}
+                  style={styles.input}
+                  disabled={loading}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Bloc des analyses (VOTRE CODE PRÉSERVÉ + STYLES PRO) */}
+          <div style={styles.card} className="card-hover">
+            <h2 style={styles.sectionTitle}>
+              <FaFlask color="#0d9488" /> Types d'analyses
+            </h2>
+            
+            <div style={styles.tagSection}>
+              <div style={styles.tagTitle}>📋 Cliquez pour ajouter rapidement</div>
+              
+              {/* PARASITOLOGIE & BACTÉRIOLOGIE */}
+              <div style={styles.tagCategory}>PARASITOLOGIE & BACTÉRIOLOGIE</div>
+              <div style={styles.tagRow}>
+                {['GE', 'SELLES KOP', 'SCOTCH TEST', 'BCE', 'Culot urinaire', 'Crachat BAAR', 'PV', 'ECBU', 'Coproculture', 'Spermogramme/Spermoculture'].map(tag => (
+                  <button key={tag} type="button" className="tag-lab" style={styles.tag} onClick={() => !loading && addTag('PARASITOLOGIE', tag)} disabled={loading}>{tag}</button>
+                ))}
+              </div>
+
+              {/* SÉROLOGIE */}
+              <div style={styles.tagCategory}>SÉROLOGIE</div>
+              <div style={styles.tagRow}>
+                {['SRV', 'Ag HBs', 'TPHA-VDRL', 'CRP', 'Toxoplasmose', 'Hépatite C (HCV)', 'Rubéole'].map(tag => (
+                  <button key={tag} type="button" className="tag-lab" style={styles.tag} onClick={() => !loading && addTag('SÉROLOGIE', tag)} disabled={loading}>{tag}</button>
+                ))}
+              </div>
+
+              {/* HÉMATOLOGIE */}
+              <div style={styles.tagCategory}>HÉMATOLOGIE</div>
+              <div style={styles.tagRow}>
+                {['NFS', 'VS', 'NB-TH', 'Groupage', 'Electrophorèse'].map(tag => (
+                  <button key={tag} type="button" className="tag-lab" style={styles.tag} onClick={() => !loading && addTag('HÉMATOLOGIE', tag)} disabled={loading}>{tag}</button>
+                ))}
+              </div>
+
+              {/* BIOCHIMIE */}
+              <div style={styles.tagCategory}>BIOCHIMIE</div>
+              <div style={styles.tagRow}>
+                {['Urée', 'Glycémie', 'Créatininémie', 'ASAT', 'ALAT', 'GGT', 'PAL', 'Uricémie', 'Bilirubine T', 'Bilirubine D', 'Phosphore', 'HbA1C', 'Cholesterol total', 'HDL-Cholesterol', 'LDL-Cholesterol', 'Triglycérides', 'Calcémie', 'Magnésiemie', 'TSHU', 'T3', 'T4', 'Ionogramme S.'].map(tag => (
+                  <button key={tag} type="button" className="tag-lab" style={styles.tag} onClick={() => !loading && addTag('BIOCHIMIE', tag)} disabled={loading}>{tag}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Analyses demandées */}
+            <div style={{ marginTop: '24px' }}>
+              <label style={{ ...styles.label, marginBottom: '8px' }}>Analyses demandées <span style={styles.required}>*</span></label>
+              <textarea
+                required
+                rows={5}
+                style={{ ...styles.textarea }}
+                value={labText}
+                onChange={(e) => setLabText(e.target.value)}
+                placeholder="Les analyses s'afficheront ici..."
+                disabled={loading}
+              />
+            </div>
+
+            {/* Motif */}
+            <div style={{ marginTop: '20px' }}>
+              <label style={{ ...styles.label, marginBottom: '8px' }}>Motif</label>
+              <textarea
+                rows={3}
+                style={{ ...styles.textarea, minHeight: '80px' }}
+                value={motif}
+                onChange={(e) => setMotif(e.target.value)}
+                placeholder="Saisir ici le motif..."
+                disabled={loading}
+              />
+            </div>
+          </div>
+
+          {/* Boutons */}
+          <div style={styles.buttonGroup}>
+            <button 
+              style={{ ...styles.btn, ...styles.btnCancel }}
+              onClick={() => { if(window.confirm('Annuler ?')) { setCentre(''); setDoc(''); setTel(''); setLabText(''); setMotif(''); } }}
+              disabled={loading || !idsReady}
+              onMouseEnter={(e) => { if (!loading && idsReady) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e2e8f0'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f1f5f9'; }}
+            >
+              ✖ Annuler
+            </button>
+            <button 
+              style={{ 
+                ...styles.btn, 
+                ...styles.btnSave,
+                opacity: (loading || !idsReady) ? 0.7 : 1,
+                cursor: (loading || !idsReady) ? 'not-allowed' : 'pointer'
+              }}
+              onClick={submitForm}
+              disabled={loading || !idsReady}
+              onMouseEnter={(e) => { if (!loading && idsReady) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#0f766e'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#0d9488'; }}
+            >
+              {loading ? (
+                <>
+                  <FaRedo style={{ animation: 'spin 1s linear infinite' }} /> Envoi en cours...
+                </>
+              ) : (
+                <>👥 Envoyer au laboratoire</>
+              )}
+            </button>
+          </div>
+          
+        </div>
       </div>
-    </form>
+    </div>
   );
 }

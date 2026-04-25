@@ -1,154 +1,25 @@
-# doctor/views.py
 import logging
-from datetime import datetime, timedelta
-
-from django.db import IntegrityError, transaction
-from django.db.models import Count, Q, F, Sum, Avg
-from django.utils import timezone
-from django.contrib.auth import authenticate, get_user_model
+from datetime import timedelta
+from django.shortcuts import render
 from rest_framework import viewsets, permissions, status, filters
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes, action
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
+from rest_framework.pagination import PageNumberPagination
+from django.contrib.auth import authenticate, get_user_model
+from django.db.utils import IntegrityError  
+from django.db.models import Count, Q, F, Sum, Avg
+from django.utils import timezone
+from django.db import transaction
+from django.core.exceptions import ValidationError
 
 from .models import *
-from .serializers import *
+from .serializers import *  
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
-
-# =============================================================================
-# 📊 STATISTIQUES — ENDPOINT /api/stats/
-# =============================================================================
-
-from rest_framework.permissions import IsAuthenticated
-
-
-logger = logging.getLogger(__name__)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def stats_view(request):
-    """
-    Endpoint: GET /api/stats/?period=day|month|year|all
-    Retourne les statistiques médicales agrégées depuis la base de données
-    """
-    period = request.query_params.get('period', 'all')
-    
-    logger.info(f"📊 Stats request - Period: {period}, User: {request.user}")
-    
-    # 🔍 Filtre de date selon la période
-    date_filter = {}
-    now = timezone.now()
-    
-    if period == 'day':
-        date_filter['date_consultation__date'] = now.date()
-    elif period == 'month':
-        date_filter['date_consultation__gte'] = now - timedelta(days=30)
-    elif period == 'year':
-        date_filter['date_consultation__gte'] = now - timedelta(days=365)
-    
-    
-    # 📊 Statistiques globales
-    try:
-        # Patients créés dans la période
-        patient_filter = {}
-        if period != 'all':
-            if 'date_consultation__gte' in date_filter:
-                patient_filter['created_at__gte'] = date_filter['date_consultation__gte']
-            if 'date_consultation__date' in date_filter:
-                patient_filter['created_at__date'] = date_filter['date_consultation__date']
-        
-        total_patients = Patient.objects.filter(**patient_filter).count()
-        logger.info(f"✅ Total patients: {total_patients} (filter: {patient_filter})")
-        
-        # Consultations dans la période
-        consultations_qs = Consultation.objects.filter(**date_filter) if date_filter else Consultation.objects.all()
-        total_consultations = consultations_qs.count()
-        logger.info(f"✅ Total consultations: {total_consultations} (filter: {date_filter})")
-        
-        # Urgences (recherche dans le motif ou un champ dedicated)
-        consultations_urgences = consultations_qs.filter(
-            Q(motif_consultation__icontains='urgence') | 
-            Q(motif_consultation__icontains='urgent') |
-            Q(service='urgence') if hasattr(Consultation, 'service') else Q()
-        ).count()
-        logger.info(f"✅ Urgences: {consultations_urgences}")
-        
-        # Maladies distinctes (via le champ 'service')
-        maladies_distinctes = consultations_qs.values('service').distinct().count()
-        logger.info(f"✅ Maladies distinctes: {maladies_distinctes}")
-        
-        # 👨‍⚕️ Performance par médecin
-        par_doctor = consultations_qs.values(
-            'doctor__id',
-            'doctor__username',
-            'doctor__first_name',
-            'doctor__last_name'
-        ).annotate(
-            patients=Count('patient', distinct=True),
-            consultations=Count('id', distinct=True)
-        ).order_by('-consultations')
-        
-        # Formatage pour le frontend
-        par_doctor_formatted = []
-        for item in par_doctor:
-            doctor_name = f"{item['doctor__first_name'] or ''} {item['doctor__last_name'] or item['doctor__username']}".strip()
-            if not doctor_name:
-                doctor_name = f"Dr. {item['doctor__username']}"
-            
-            par_doctor_formatted.append({
-                'medecin__username': doctor_name,
-                'patients': item['patients'],
-                'consultations': item['consultations']
-            })
-        
-        logger.info(f"✅ Par médecin: {len(par_doctor_formatted)} médecins")
-        
-        # 🏥 Répartition par service
-        par_service = consultations_qs.values('service').annotate(
-            patients=Count('patient', distinct=True),
-            consultations=Count('id', distinct=True)
-        ).order_by('-consultations')
-        
-        par_service_formatted = [
-            {
-                'service': item['service'] or 'Non spécifié',
-                'patients': item['patients'],
-                'consultations': item['consultations']
-            }
-            for item in par_service
-        ]
-        
-        logger.info(f"✅ Par service: {len(par_service_formatted)} services")
-        
-        # ✅ Réponse JSON structurée
-        response_data = {
-            'total_patients': total_patients,
-            'total_consultations': total_consultations,
-            'consultations_urgences': consultations_urgences,
-            'maladies_distinctes': maladies_distinctes,
-            'par_doctor': par_doctor_formatted,
-            'par_service': par_service_formatted,
-            'period': period,
-            'generated_at': now.isoformat(),
-            'debug': {
-                'patient_filter': patient_filter,
-                'consultation_filter': date_filter,
-            }
-        }
-        
-        logger.info(f"📤 Response: {response_data}")
-        return Response(response_data, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        logger.error(f"❌ Error in stats_view: {str(e)}", exc_info=True)
-        return Response({
-            'error': 'Erreur lors du calcul des statistiques',
-            'details': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # =============================================================================
 # PERMISSIONS PERSONNALISÉES
@@ -169,8 +40,16 @@ class IsAdminOrDoctor(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['admin', 'doctor']
 
+class IsPharmacie(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in ['admin', 'pharmacie']
+
+class IsCaisse(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in ['admin', 'caisse']
+
 # =============================================================================
-# 🔐 AUTHENTIFICATION & GESTION UTILISATEURS
+# AUTHENTIFICATION
 # =============================================================================
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
@@ -257,7 +136,101 @@ def me_view(request):
     return Response(data)
 
 # =============================================================================
-# 👨‍ ADMINISTRATION
+# STATS
+# =============================================================================
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def stats_view(request):
+    """Endpoint: GET /api/stats/?period=day|month|year|all"""
+    period = request.query_params.get('period', 'all')
+    
+    logger.info(f"📊 Stats request - Period: {period}, User: {request.user}")
+    
+    date_filter = {}
+    now = timezone.now()
+    
+    if period == 'day':
+        date_filter['date_consultation__date'] = now.date()
+    elif period == 'month':
+        date_filter['date_consultation__gte'] = now - timedelta(days=30)
+    elif period == 'year':
+        date_filter['date_consultation__gte'] = now - timedelta(days=365)
+    
+    try:
+        patient_filter = {}
+        if period != 'all':
+            if 'date_consultation__gte' in date_filter:
+                patient_filter['created_at__gte'] = date_filter['date_consultation__gte']
+            if 'date_consultation__date' in date_filter:
+                patient_filter['created_at__date'] = date_filter['date_consultation__date']
+        
+        total_patients = Patient.objects.filter(**patient_filter).count()
+        consultations_qs = Consultation.objects.filter(**date_filter) if date_filter else Consultation.objects.all()
+        total_consultations = consultations_qs.count()
+        
+        consultations_urgences = consultations_qs.filter(
+            Q(motif_consultation__icontains='urgence') | 
+            Q(motif_consultation__icontains='urgent') |
+            Q(service='urgence')
+        ).count()
+        
+        maladies_distinctes = consultations_qs.values('service').distinct().count()
+        
+        par_doctor = consultations_qs.values(
+            'doctor__id', 'doctor__username', 'doctor__first_name', 'doctor__last_name'
+        ).annotate(
+            patients=Count('patient', distinct=True),
+            consultations=Count('id', distinct=True)
+        ).order_by('-consultations')
+        
+        par_doctor_formatted = []
+        for item in par_doctor:
+            doctor_name = f"{item['doctor__first_name'] or ''} {item['doctor__last_name'] or item['doctor__username']}".strip()
+            if not doctor_name:
+                doctor_name = f"Dr. {item['doctor__username']}"
+            
+            par_doctor_formatted.append({
+                'medecin__username': doctor_name,
+                'patients': item['patients'],
+                'consultations': item['consultations']
+            })
+        
+        par_service = consultations_qs.values('service').annotate(
+            patients=Count('patient', distinct=True),
+            consultations=Count('id', distinct=True)
+        ).order_by('-consultations')
+        
+        par_service_formatted = [
+            {
+                'service': item['service'] or 'Non spécifié',
+                'patients': item['patients'],
+                'consultations': item['consultations']
+            }
+            for item in par_service
+        ]
+        
+        response_data = {
+            'total_patients': total_patients,
+            'total_consultations': total_consultations,
+            'consultations_urgences': consultations_urgences,
+            'maladies_distinctes': maladies_distinctes,
+            'par_doctor': par_doctor_formatted,
+            'par_service': par_service_formatted,
+            'period': period,
+            'generated_at': now.isoformat(),
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in stats_view: {str(e)}", exc_info=True)
+        return Response({
+            'error': 'Erreur lors du calcul des statistiques',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# =============================================================================
+# ADMIN
 # =============================================================================
 class AdminUserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -291,7 +264,6 @@ class AdminUserViewSet(viewsets.ModelViewSet):
 
 
 class AdminDoctorViewSet(viewsets.ModelViewSet):
-    """ViewSet pour gérer les médecins"""
     serializer_class = DoctorProfileSerializer 
     permission_classes = [IsAdmin]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -299,8 +271,8 @@ class AdminDoctorViewSet(viewsets.ModelViewSet):
     
     def get_serializer_class(self):
         if self.action == 'create':
-            return DoctorCreateSerializer
-        return DoctorProfileSerializer
+            return ConsultationCreateSerializer
+        return ConsultationSerializer
 
     def list(self, request):
         doctors_qs = User.objects.filter(role='doctor').select_related('doctor_profile')
@@ -342,7 +314,7 @@ class AdminDoctorViewSet(viewsets.ModelViewSet):
         return Response({'error': 'Minimum 8 caractères requis'}, status=status.HTTP_400_BAD_REQUEST)
 
 # =============================================================================
-# 👤 PROFIL & STATISTIQUES
+# PROFIL & STATS
 # =============================================================================
 class UserProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -374,40 +346,8 @@ class UserProfileView(APIView):
             **UserSerializer(user).data
         })
 
-class StatsViewSet(viewsets.ViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def list(self, request):
-        user = request.user
-        period = request.query_params.get('period', 'all')
-        date_filter = {}
-        
-        if period == 'today':
-            date_filter['date_consultation__date'] = timezone.now().date()
-        elif period == 'week':
-            date_filter['date_consultation__gte'] = timezone.now() - timedelta(days=7)
-        elif period == 'month':
-            date_filter['date_consultation__gte'] = timezone.now() - timedelta(days=30)
-        
-        qs = Consultation.objects.filter(**date_filter)
-        
-        if user.is_doctor:
-            qs = qs.filter(doctor=user)
-        elif user.is_patient_user and hasattr(user, 'patient_profile'):
-            qs = qs.filter(patient__user=user)
-        
-        return Response({
-            'total_consultations': qs.count(),
-            'par_service': list(qs.values('service').annotate(count=Count('id')).order_by('-count')),
-            'par_doctor': list(qs.values('doctor__last_name').annotate(count=Count('id')).order_by('-count')) if user.is_admin else None,
-            'low_stock': Produit.objects.filter(stock_actuel__lte=F('stock_alerte')).count() if user.is_admin else 0,
-            'ventes_today': float(Vente.objects.filter(date_vente__date=timezone.now().date()).aggregate(t=Sum('montant_total'))['t'] or 0),
-            'period': period,
-            'role': user.role
-        })
-
 # =============================================================================
-# 🏥 PATIENTS & DOSSIER MÉDICAL
+# PATIENTS
 # =============================================================================
 class PatientViewSet(viewsets.ModelViewSet):
     queryset = Patient.objects.all()
@@ -427,7 +367,7 @@ class PatientViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         if not serializer.validated_data.get('code_patient'):
-            code = f"PAT-{datetime.now().strftime('%Y%m%d%H%M%S')}-{datetime.now().microsecond % 1000:03d}"
+            code = f"PAT-{timezone.now().strftime('%Y%m%d%H%M%S')}-{timezone.now().microsecond % 1000:03d}"
             serializer.save(code_patient=code)
         else:
             serializer.save()
@@ -444,6 +384,7 @@ class PatientViewSet(viewsets.ModelViewSet):
         members = MembreFamilial.objects.filter(patient=patient)
         return Response(MembreFamilialSerializer(members, many=True).data)
 
+
 class MembreFamilialViewSet(viewsets.ModelViewSet):
     queryset = MembreFamilial.objects.select_related('patient').all()
     serializer_class = MembreFamilialSerializer
@@ -457,6 +398,7 @@ class MembreFamilialViewSet(viewsets.ModelViewSet):
             return qs.filter(patient__user=self.request.user)
         return qs
 
+
 class EntreeCarnetMedicalViewSet(viewsets.ModelViewSet):
     queryset = EntreeCarnetMedical.objects.select_related('membre_familial__patient').all()
     serializer_class = EntreeCarnetMedicalSerializer
@@ -468,13 +410,14 @@ class EntreeCarnetMedicalViewSet(viewsets.ModelViewSet):
             return qs.filter(membre_familial__patient__user=self.request.user)
         return qs
 
+
 class AntecedentViewSet(viewsets.ModelViewSet):
     queryset = Antecedent.objects.select_related('patient').all()
     serializer_class = AntecedentSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 # =============================================================================
-# 🏥 CONSULTATIONS & SPÉCIALITÉS
+# CONSULTATIONS
 # =============================================================================
 class ConsultationViewSet(viewsets.ModelViewSet):
     serializer_class = ConsultationSerializer
@@ -528,8 +471,11 @@ class ConsultationViewSet(viewsets.ModelViewSet):
             'radio': AnalyseRadioSerializer(consultation.analyses_radio.all(), many=True).data
         })
 
+# =============================================================================
+# SPÉCIALITÉS
+# =============================================================================
 class ExamenOphtalmoViewSet(viewsets.ModelViewSet):
-    queryset = ExamenOphtalmo.objects.select_related('consultation__patient').all()
+    queryset = ExamenOphtalmo.objects.all()
     serializer_class = ExamenOphtalmoSerializer
     permission_classes = [permissions.IsAuthenticated]
     
@@ -538,6 +484,7 @@ class ExamenOphtalmoViewSet(viewsets.ModelViewSet):
         if self.request.user.is_doctor:
             return qs.filter(consultation__doctor=self.request.user)
         return qs
+
 
 class InterventionChirurgicaleViewSet(viewsets.ModelViewSet):
     queryset = InterventionChirurgicale.objects.select_related('consultation__patient').all()
@@ -550,6 +497,7 @@ class InterventionChirurgicaleViewSet(viewsets.ModelViewSet):
             return qs.filter(consultation__doctor=self.request.user)
         return qs
 
+
 class ExamenUrologieViewSet(viewsets.ModelViewSet):
     queryset = ExamenUrologie.objects.select_related('consultation__patient').all()
     serializer_class = ExamenUrologieSerializer
@@ -560,6 +508,7 @@ class ExamenUrologieViewSet(viewsets.ModelViewSet):
         if self.request.user.is_doctor:
             return qs.filter(consultation__doctor=self.request.user)
         return qs
+
 
 class ExamenCardiologieViewSet(viewsets.ModelViewSet):
     queryset = ExamenCardiologie.objects.select_related('consultation__patient').all()
@@ -573,7 +522,7 @@ class ExamenCardiologieViewSet(viewsets.ModelViewSet):
         return qs
 
 # =============================================================================
-# 💊 ORDONNANCES & ANALYSES
+# ORDONNANCES & ANALYSES
 # =============================================================================
 class OrdonnanceViewSet(viewsets.ModelViewSet):
     queryset = Ordonnance.objects.select_related('consultation__patient').prefetch_related('medicaments').all()
@@ -590,11 +539,96 @@ class OrdonnanceViewSet(viewsets.ModelViewSet):
         if self.request.user.is_patient_user and hasattr(self.request.user, 'patient_profile'):
             return qs.filter(consultation__patient__user=self.request.user)
         return qs
+    
+    def create(self, request, *args, **kwargs):
+        """Création ou réutilisation d'ordonnance"""
+        consultation_id = request.data.get('consultation')
+        medicaments_data = request.data.get('medicaments', [])
+        
+        if not consultation_id:
+            return Response(
+                {'consultation': ['Ce champ est obligatoire.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        with transaction.atomic():
+            # Vérifier si ordonnance existe déjà
+            ordonnance, created = Ordonnance.objects.get_or_create(
+                consultation_id=consultation_id,
+                defaults={}
+            )
+            
+            if created:
+                logger.info(f"✅ Nouvelle ordonnance créée: {ordonnance.id} pour consultation {consultation_id}")
+                status_code = status.HTTP_201_CREATED
+            else:
+                logger.info(f"ℹ️ Ordonnance {ordonnance.id} existe déjà pour consultation {consultation_id}, réutilisation...")
+                status_code = status.HTTP_200_OK
+                
+                # Supprimer anciens médicaments si mise à jour
+                if medicaments_data:
+                    MedicamentPrescrit.objects.filter(ordonnance=ordonnance).delete()
+                    logger.info(f"🗑️ Anciens médicaments supprimés pour ordonnance {ordonnance.id}")
+            
+            # Créer les médicaments
+            if medicaments_data and isinstance(medicaments_data, list):
+                for med_data in medicaments_data:
+                    MedicamentPrescrit.objects.create(
+                        ordonnance=ordonnance,
+                        designation=med_data.get('designation'),
+                        posologie=med_data.get('posologie'),
+                        quantite=med_data.get('quantite'),
+                        duree=med_data.get('duree')
+                    )
+                logger.info(f"💊 {len(medicaments_data)} médicament(s) créé(s) pour ordonnance {ordonnance.id}")
+            
+            serializer = self.get_serializer(ordonnance)
+            return Response(serializer.data, status=status_code)
+    
+    @action(detail=True, methods=['post'])
+    def mark_paid(self, request, pk=None):
+        """Marquer l'ordonnance comme payée"""
+        ordonnance = self.get_object()
+        payment_id = request.data.get('payment_id')
+        
+        ordonnance.statut = 'payee'
+        ordonnance.save(update_fields=['statut'])
+        
+        return Response({'status': 'paid', 'ordonnance_id': ordonnance.id})
+    
+    @action(detail=True, methods=['get'])
+    def products(self, request, pk=None):
+        """Récupérer les produits d'une ordonnance avec stock"""
+        ordonnance = self.get_object()
+        products = []
+        
+        for med in ordonnance.medicaments.all():
+            produit = Produit.objects.filter(designation__iexact=med.designation).first()
+            products.append({
+                'id': med.id,
+                'name': med.designation,
+                'quantity': 1,
+                'price': float(produit.prix_unitaire_vente) if produit else 0,
+                'stock_available': produit.stock_actuel if produit else 0,
+                'prescription_id': med.id
+            })
+        
+        return Response(products)
+
 
 class MedicamentPrescritViewSet(viewsets.ModelViewSet):
     queryset = MedicamentPrescrit.objects.select_related('ordonnance__consultation__patient').all()
     serializer_class = MedicamentPrescritSerializer
     permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.user.is_doctor:
+            return qs.filter(ordonnance__consultation__doctor=self.request.user)
+        if self.request.user.is_patient_user and hasattr(self.request.user, 'patient_profile'):
+            return qs.filter(ordonnance__consultation__patient__user=self.request.user)
+        return qs
+
 
 class AnalyseLaboViewSet(viewsets.ModelViewSet):
     queryset = AnalyseLabo.objects.select_related('consultation__patient').all()
@@ -608,6 +642,7 @@ class AnalyseLaboViewSet(viewsets.ModelViewSet):
         if self.request.user.is_patient_user and hasattr(self.request.user, 'patient_profile'):
             return qs.filter(consultation__patient__user=self.request.user)
         return qs
+
 
 class AnalyseRadioViewSet(viewsets.ModelViewSet):
     queryset = AnalyseRadio.objects.select_related('consultation__patient').all()
@@ -623,7 +658,7 @@ class AnalyseRadioViewSet(viewsets.ModelViewSet):
         return qs
 
 # =============================================================================
-# 🏪 PHARMACIE & STOCK
+# PHARMACIE & STOCK
 # =============================================================================
 class CategorieProduitViewSet(viewsets.ModelViewSet):
     queryset = CategorieProduit.objects.all()
@@ -631,6 +666,7 @@ class CategorieProduitViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter]
     search_fields = ['nom']
+
 
 class ProduitViewSet(viewsets.ModelViewSet):
     queryset = Produit.objects.select_related('categorie').all()
@@ -656,10 +692,12 @@ class ProduitViewSet(viewsets.ModelViewSet):
         prod.save(update_fields=['stock_actuel'])
         return Response({'message': f'Stock ajusté: {prod.stock_actuel}'})
 
+
 class ApprovisionnementViewSet(viewsets.ModelViewSet):
     queryset = Approvisionnement.objects.select_related('produit').all()
     serializer_class = ApprovisionnementSerializer
     permission_classes = [permissions.IsAuthenticated]
+
 
 class VenteViewSet(viewsets.ModelViewSet):
     queryset = Vente.objects.select_related('patient').prefetch_related('lignes__produit').all()
@@ -675,13 +713,132 @@ class VenteViewSet(viewsets.ModelViewSet):
             return qs.filter(patient__user=self.request.user)
         return qs
 
+
 class LigneVenteViewSet(viewsets.ModelViewSet):
     queryset = LigneVente.objects.select_related('vente', 'produit').all()
     serializer_class = LigneVenteSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 # =============================================================================
-# 💰 FACTURATION & PAIEMENTS
+# WORKFLOW PHARMACIE/CAISSE
+# =============================================================================
+@api_view(['POST'])
+@permission_classes([IsPharmacie])
+def prepare_products(request):
+    """Préparer les produits (réserver le stock)"""
+    ordonnance_id = request.data.get('ordonnance_id')
+    products = request.data.get('products', [])
+    
+    try:
+        with transaction.atomic():
+            for p in products:
+                med = MedicamentPrescrit.objects.get(id=p['id'])
+                produit = Produit.objects.select_for_update().filter(
+                    designation__iexact=med.designation
+                ).first()
+                
+                if produit and produit.stock_actuel >= p['quantity']:
+                    # Réserver le stock (optionnel: créer une réservation temporaire)
+                    pass
+                else:
+                    return Response(
+                        {'error': f'Stock insuffisant pour {med.designation}'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+        
+        return Response({'status': 'prepared'})
+    except MedicamentPrescrit.DoesNotExist:
+        return Response({'error': 'Médicament non trouvé'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Erreur préparation produits: {str(e)}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsPharmacie])
+def send_to_caisse(request):
+    """Envoyer à la caisse"""
+    serializer = CaisseDataSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    data = serializer.validated_data
+    
+    try:
+        # Mettre à jour le statut de l'ordonnance
+        ordonnance = Ordonnance.objects.get(id=data['ordonnance_id'])
+        ordonnance.statut = 'en_attente_paiement'
+        ordonnance.save(update_fields=['statut'])
+        
+        # Créer une notification pour la caisse
+        Notification.objects.create(
+            recipient_role='caisse',
+            title='Nouvelle ordonnance à payer',
+            message=f"Patient {data['patient_name']} - Montant: {data['total_amount']} FCFA",
+            data={
+                'ordonnance_id': data['ordonnance_id'],
+                'patient_id': data['patient_id'],
+                'total_amount': str(data['total_amount'])
+            }
+        )
+        
+        return Response({'status': 'sent', 'message': 'Ordonnance envoyée à la caisse'})
+    except Ordonnance.DoesNotExist:
+        return Response({'error': 'Ordonnance non trouvée'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Erreur envoi caisse: {str(e)}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsCaisse])
+def get_caisse_data(request, ordonnance_id):
+    """Récupérer les données de caisse pour une ordonnance"""
+    try:
+        ordonnance = Ordonnance.objects.select_related('consultation__patient').get(id=ordonnance_id)
+        
+        products = []
+        for med in ordonnance.medicaments.all():
+            produit = Produit.objects.filter(designation__iexact=med.designation).first()
+            products.append({
+                'id': med.id,
+                'name': med.designation,
+                'quantity': 1,
+                'price': float(produit.prix_unitaire_vente) if produit else 0,
+            })
+        
+        total = sum(p['price'] * p['quantity'] for p in products)
+        
+        # Vérifier les alertes de stock
+        stock_alerts = []
+        for med in ordonnance.medicaments.all():
+            produit = Produit.objects.filter(designation__iexact=med.designation).first()
+            if produit and produit.stock_actuel < 1:
+                stock_alerts.append({
+                    'productId': med.id,
+                    'productName': med.designation,
+                    'required': 1,
+                    'available': produit.stock_actuel
+                })
+        
+        return Response({
+            'ordonnance_id': ordonnance.id,
+            'consultation_id': ordonnance.consultation.id,
+            'patient_id': ordonnance.consultation.patient.id,
+            'patient_name': f"{ordonnance.consultation.patient.nom} {ordonnance.consultation.patient.prenoms}",
+            'products': products,
+            'total_amount': total,
+            'stock_alerts': stock_alerts
+        })
+    except Ordonnance.DoesNotExist:
+        return Response({'error': 'Ordonnance non trouvée'}, status=status.HTTP_404_NOT_FOUND)
+
+# =============================================================================
+# PAIEMENTS & FACTURATION
+# =============================================================================
+
+# =============================================================================
+# FACTURATION & PAIEMENTS (ViewSets manquants)
 # =============================================================================
 class ActeMedicalViewSet(viewsets.ModelViewSet):
     queryset = ActeMedical.objects.all()
@@ -690,36 +847,22 @@ class ActeMedicalViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter]
     search_fields = ['libelle', 'code_acte']
 
+
 class FactureViewSet(viewsets.ModelViewSet):
-    queryset = Facture.objects.select_related('patient').prefetch_related('lignes_actes__acte', 'lignes_pharmacie__produit', 'paiements').all()
+    queryset = Facture.objects.select_related('patient').prefetch_related('paiements', 'lignes_actes', 'lignes_pharmacie').all()
     serializer_class = FactureSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
-    def get_serializer_class(self):
-        return FactureCreateSerializer if self.action == 'create' else FactureSerializer
     
     def get_queryset(self):
         qs = super().get_queryset()
         if self.request.user.is_patient_user and hasattr(self.request.user, 'patient_profile'):
             return qs.filter(patient__user=self.request.user)
         return qs
-    
-    @action(detail=True, methods=['post'])
-    def add_payment(self, request, pk=None):
-        facture = self.get_object()
-        serializer = PaiementSerializer(data=request.data)
-        if serializer.is_valid():
-            with transaction.atomic():
-                serializer.save(facture=facture)
-                total_paye = facture.paiements.aggregate(t=Sum('montant_verse'))['t'] or 0
-                facture.statut_paiement = 'Payé' if total_paye >= facture.montant_total else 'Partiel'
-                facture.save(update_fields=['statut_paiement'])
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class PaiementViewSet(viewsets.ModelViewSet):
-    queryset = Paiement.objects.select_related('facture__patient').all()
-    serializer_class = PaiementSerializer
+    queryset = Paiement.objects.select_related('facture').all()
+    serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
@@ -728,18 +871,174 @@ class PaiementViewSet(viewsets.ModelViewSet):
             return qs.filter(facture__patient__user=self.request.user)
         return qs
 
+
 class LigneFactureActeViewSet(viewsets.ModelViewSet):
     queryset = LigneFactureActe.objects.select_related('facture', 'acte').all()
     serializer_class = LigneFactureActeSerializer
     permission_classes = [permissions.IsAuthenticated]
+
 
 class LigneFacturePharmacieViewSet(viewsets.ModelViewSet):
     queryset = LigneFacturePharmacie.objects.select_related('facture', 'produit').all()
     serializer_class = LigneFacturePharmacieSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def create_payment(request):
+    """Enregistrer un paiement"""
+    serializer = PaymentRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    data = serializer.validated_data
+    
+    try:
+        with transaction.atomic():
+            # Créer ou récupérer la facture
+            consultation = Consultation.objects.get(id=data['consultation'])
+            ordonnance = Ordonnance.objects.get(id=data['ordonnance'])
+            patient = Patient.objects.get(id=data['patient'])
+            
+            # Créer la facture si elle n'existe pas
+            facture, created = Facture.objects.get_or_create(
+                consultation=consultation,
+                defaults={
+                    'patient': patient,
+                    'numero_facture': f"FAC-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    'montant_total': data['amount'],
+                    'montant_patient': data['amount'],
+                    'statut_paiement': 'Non payé'
+                }
+            )
+            
+            # Créer le paiement
+            payment = Paiement.objects.create(
+                facture=facture,
+                montant_verse=data['amount'],
+                mode_paiement=data['payment_method'],
+                reference_transaction=data.get('phone_number', '')
+            )
+            
+            # Mettre à jour la facture
+            total_paye = facture.paiements.aggregate(t=Sum('montant_verse'))['t'] or 0
+            facture.statut_paiement = 'Payé' if total_paye >= facture.montant_patient else 'Partiel'
+            facture.save(update_fields=['statut_paiement'])
+            
+            # Mettre à jour l'ordonnance
+            ordonnance.statut = 'payee'
+            ordonnance.save(update_fields=['statut'])
+            
+            # Créer des notifications
+            Notification.objects.bulk_create([
+                Notification(
+                    recipient_role='pharmacie',
+                    title='Paiement reçu',
+                    message=f"Ordonnance #{ordonnance.id} prête à délivrer",
+                    data={'ordonnance_id': ordonnance.id, 'patient_id': patient.id}
+                ),
+                Notification(
+                    recipient_role='doctor',
+                    title='Consultation finalisée',
+                    message=f"Paiement effectué pour {patient.nom}",
+                    data={'ordonnance_id': ordonnance.id, 'patient_id': patient.id, 'payment_id': payment.id}
+                )
+            ])
+            
+            return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
+    
+    except Consultation.DoesNotExist:
+        return Response({'error': 'Consultation non trouvée'}, status=status.HTTP_404_NOT_FOUND)
+    except Ordonnance.DoesNotExist:
+        return Response({'error': 'Ordonnance non trouvée'}, status=status.HTTP_404_NOT_FOUND)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient non trouvé'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Erreur création paiement: {str(e)}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def generate_invoice(request):
+    """Générer une facture"""
+    try:
+        payment_id = request.data.get('payment_id')
+        patient_id = request.data.get('patient_id')
+        products = request.data.get('products', [])
+        total = request.data.get('total', 0)
+        
+        payment = Paiement.objects.get(id=payment_id)
+        patient = Patient.objects.get(id=patient_id)
+        
+        # Créer la facture
+        invoice = Facture.objects.create(
+            patient=patient,
+            consultation=payment.facture.consultation if payment.facture else None,
+            numero_facture=f"FAC-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+            montant_total=total,
+            montant_patient=total,
+            statut_paiement='Payé'
+        )
+        
+        # Ajouter les lignes de pharmacie
+        for prod_data in products:
+            produit = Produit.objects.filter(designation=prod_data['name']).first()
+            if produit:
+                LigneFacturePharmacie.objects.create(
+                    facture=invoice,
+                    produit=produit,
+                    quantite=prod_data['quantity'],
+                    prix_unitaire=produit.prix_unitaire_vente,
+                    sous_total=produit.prix_unitaire_vente * prod_data['quantity']
+                )
+        
+        return Response({
+            'id': invoice.id,
+            'numero_facture': invoice.numero_facture,
+            'url': f'/api/factures/{invoice.id}/pdf/'
+        })
+    
+    except Paiement.DoesNotExist:
+        return Response({'error': 'Paiement non trouvé'}, status=status.HTTP_404_NOT_FOUND)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient non trouvé'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Erreur génération facture: {str(e)}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 # =============================================================================
-# 🔍 UTILITAIRES
+# NOTIFICATIONS
+# =============================================================================
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_unread_notifications(request):
+    """Récupérer les notifications non lues"""
+    role = request.user.role if hasattr(request.user, 'role') else 'patient'
+    
+    notifs = Notification.objects.filter(
+        Q(recipient_role=role) | Q(recipient_role='all'),
+        read=False
+    ).order_by('-created_at')[:20]
+    
+    serializer = NotificationSerializer(notifs, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def mark_notification_read(request, notification_id):
+    """Marquer une notification comme lue"""
+    try:
+        notif = Notification.objects.get(id=notification_id)
+        notif.read = True
+        notif.save(update_fields=['read'])
+        return Response({'status': 'read'})
+    except Notification.DoesNotExist:
+        return Response({'error': 'Notification non trouvée'}, status=status.HTTP_404_NOT_FOUND)
+
+# =============================================================================
+# UTILITAIRES
 # =============================================================================
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])

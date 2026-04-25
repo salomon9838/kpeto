@@ -1,0 +1,61 @@
+INFO 2026-04-21 16:17:04,888 views 📊 Stats request - Period: all, User: salomon (Patient)
+INFO 2026-04-21 16:17:04,901 views ✅ Total patients: 8 (filter: {})
+INFO 2026-04-21 16:17:04,905 views ✅ Total consultations: 10 (filter: {})
+INFO 2026-04-21 16:17:04,910 views ✅ Urgences: 0
+INFO 2026-04-21 16:17:04,914 views ✅ Maladies distinctes: 1
+INFO 2026-04-21 16:17:04,922 views ✅ Par médecin: 3 médecins
+INFO 2026-04-21 16:17:04,924 views ✅ Par service: 1 services
+INFO 2026-04-21 16:17:04,924 views 📤 Response: {'total_patients': 8, 'total_consultations': 10, 'consultations_urgences': 0, 'maladies_distinctes': 1, 'par_doctor': [{'medecin__username': 'salopa salopa', 'patients': 1, 'consultations': 8}, {'medecin__username': 'paul paul', 'patients': 1, 'consultations': 1}, {'medecin__username': 'None', 'patients': 1, 'consultations': 1}], 'par_service': [{'service': 'general', 'patients': 1, 'consultations': 10}], 'period': 'all', 'generated_at': '2026-04-21T16:17:04.894350+00:00', 'debug': {'patient_filter': {}, 'consultation_filter': {}}}
+INFO 2026-04-21 22:55:56,336 views ✅ Nouvelle ordonnance créée: 2 pour consultation 21
+INFO 2026-04-21 22:56:05,468 views ℹ️ Ordonnance 2 existe déjà pour consultation 21, réutilisation...
+INFO 2026-04-21 22:56:21,416 views ℹ️ Ordonnance 2 existe déjà pour consultation 21, réutilisation...
+INFO 2026-04-21 23:16:27,288 views ℹ️ Ordonnance 2 existe déjà pour consultation 21, réutilisation...
+INFO 2026-04-21 23:16:27,447 views 📥 Création médicament: {'ordonnance': 2, 'designation': 'M', 'posologie': 'pso', 'quantite': '2', 'duree': '2'}
+INFO 2026-04-21 23:28:21,367 views ℹ️ Ordonnance 2 existe déjà pour consultation 21, réutilisation...
+INFO 2026-04-21 23:28:21,565 views 📥 Création médicament: {'ordonnance': 2, 'designation': 'medi', 'posologie': 'pso', 'quantite': '2', 'duree': '2'}
+INFO 2026-04-22 05:50:07,866 views ✅ Nouvelle ordonnance créée: 1 pour consultation 1
+INFO 2026-04-22 05:50:07,949 views 📥 Création médicament: {'ordonnance': 1, 'designation': 'Medicament', 'posologie': 'Psologie', 'quantite': '2', 'duree': '2'}
+INFO 2026-04-22 11:56:40,546 views ✅ Nouvelle ordonnance créée: 2 pour consultation 2
+INFO 2026-04-22 11:56:40,626 views 📥 Création médicament: {'ordonnance': 2, 'designation': 'Paracetamol', 'posologie': 'Posologie', 'quantite': '12', 'duree': '2'}
+INFO 2026-04-22 23:06:51,806 views 📊 Stats request - Period: all, User: hh_salomon (Médecin)
+INFO 2026-04-22 23:06:51,961 views 📊 Stats request - Period: all, User: hh_salomon (Médecin)
+INFO 2026-04-22 23:08:37,809 views 📊 Stats request - Period: day, User: hh_salomon (Médecin)
+INFO 2026-04-22 23:08:41,594 views 📊 Stats request - Period: month, User: hh_salomon (Médecin)
+INFO 2026-04-22 23:08:44,017 views 📊 Stats request - Period: year, User: hh_salomon (Médecin)
+INFO 2026-04-22 23:08:45,997 views 📊 Stats request - Period: all, User: hh_salomon (Médecin)
+INFO 2026-04-22 23:08:47,027 views 📊 Stats request - Period: all, User: hh_salomon (Médecin)
+INFO 2026-04-24 00:40:42,704 views 📊 Stats request - Period: all, User: hh_salomon (Médecin)
+INFO 2026-04-24 00:40:42,836 views 📊 Stats request - Period: all, User: hh_salomon (Médecin)
+INFO 2026-04-24 00:40:45,729 views 📊 Stats request - Period: day, User: hh_salomon (Médecin)
+INFO 2026-04-24 00:40:49,341 views 📊 Stats request - Period: month, User: hh_salomon (Médecin)
+INFO 2026-04-24 00:40:51,856 views 📊 Stats request - Period: year, User: hh_salomon (Médecin)
+INFO 2026-04-24 00:40:53,344 views 📊 Stats request - Period: all, User: hh_salomon (Médecin)
+INFO 2026-04-24 00:40:54,884 views 📊 Stats request - Period: day, User: hh_salomon (Médecin)
+INFO 2026-04-24 00:41:00,156 views 📊 Stats request - Period: month, User: hh_salomon (Médecin)
+INFO 2026-04-24 00:41:01,799 views 📊 Stats request - Period: day, User: hh_salomon (Médecin)
+INFO 2026-04-24 00:41:07,038 views 📊 Stats request - Period: month, User: hh_salomon (Médecin)
+INFO 2026-04-24 00:55:10,513 views ✅ Nouvelle ordonnance créée: 3 pour consultation 32
+INFO 2026-04-24 00:55:21,994 views ℹ️ Ordonnance 3 existe déjà pour consultation 32, réutilisation...
+INFO 2026-04-24 00:57:22,565 views ℹ️ Ordonnance 3 existe déjà pour consultation 32, réutilisation...
+INFO 2026-04-24 01:00:41,152 views ℹ️ Ordonnance 3 existe déjà pour consultation 32, réutilisation...
+INFO 2026-04-24 02:09:59,176 views ✅ Nouvelle ordonnance créée: 4 pour consultation 36
+INFO 2026-04-24 02:17:45,531 views 📊 Stats request - Period: all, User: hh_sam (Médecin)
+INFO 2026-04-24 02:17:45,656 views 📊 Stats request - Period: all, User: hh_sam (Médecin)
+INFO 2026-04-24 02:18:07,908 views 📊 Stats request - Period: day, User: hh_sam (Médecin)
+INFO 2026-04-24 02:21:39,133 views ✅ Nouvelle ordonnance créée: 5 pour consultation 37
+INFO 2026-04-24 02:24:57,203 views ✅ Nouvelle ordonnance créée: 6 pour consultation 38
+INFO 2026-04-24 02:28:13,674 views ✅ Nouvelle ordonnance créée: 7 pour consultation 39
+INFO 2026-04-24 02:32:46,146 views ✅ Nouvelle ordonnance créée: 8 pour consultation 40
+INFO 2026-04-24 02:45:11,807 views ✅ Nouvelle ordonnance créée: 9 pour consultation 41
+INFO 2026-04-24 19:54:24,055 views ✅ Nouvelle ordonnance créée: 10 pour consultation 42
+INFO 2026-04-24 20:04:24,577 views ✅ Nouvelle ordonnance créée: 11 pour consultation 43
+INFO 2026-04-24 20:16:05,824 views ✅ Nouvelle ordonnance créée: 12 pour consultation 44
+INFO 2026-04-24 20:34:38,637 views 📊 Stats request - Period: all, User: hh_fiagan (Médecin)
+INFO 2026-04-24 20:34:38,892 views 📊 Stats request - Period: all, User: hh_fiagan (Médecin)
+INFO 2026-04-24 20:34:43,190 views 📊 Stats request - Period: day, User: hh_fiagan (Médecin)
+INFO 2026-04-24 20:35:28,801 views 📊 Stats request - Period: month, User: hh_fiagan (Médecin)
+INFO 2026-04-24 20:35:31,035 views 📊 Stats request - Period: year, User: hh_fiagan (Médecin)
+INFO 2026-04-24 20:35:32,351 views 📊 Stats request - Period: all, User: hh_fiagan (Médecin)
+INFO 2026-04-24 20:35:33,547 views 📊 Stats request - Period: all, User: hh_fiagan (Médecin)
+INFO 2026-04-24 23:54:01,463 views ✅ Nouvelle ordonnance créée: 13 pour consultation 46
+INFO 2026-04-24 23:55:42,527 views ℹ️ Ordonnance 13 existe déjà pour consultation 46, réutilisation...

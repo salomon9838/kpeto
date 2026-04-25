@@ -344,21 +344,37 @@ class MedicamentPrescrit(models.Model):
 
     class Meta:
         db_table = 'medicaments_prescrits'
-
-
+# doctor/models.py
 class AnalyseLabo(models.Model):
-    consultation = models.ForeignKey(Consultation, on_delete=models.CASCADE, related_name='analyses_labo')
-    centre_labo = models.CharField(max_length=150)
+    consultation = models.ForeignKey('Consultation', on_delete=models.CASCADE, related_name='analyses_labo')
+    patient = models.ForeignKey('Patient', on_delete=models.CASCADE, related_name='analyses_labo', null=True, blank=True)
+    
+    # AUGMENTEZ max_length à 50 ou 100
+    nom_soignant = models.CharField(max_length=100, default='', blank=True)
+    tel_soignant = models.CharField(max_length=50, default='', blank=True)   
+    centre_labo = models.CharField(max_length=200, default='', blank=True)
+    service = models.CharField(max_length=50, default='general')
+    
     analyses_demandees = models.TextField()
+    motif = models.TextField(blank=True, default='')
+    resultats = models.TextField(blank=True, null=True)
+    date_prelevement = models.DateTimeField(null=True, blank=True)
     date_demande = models.DateTimeField(auto_now_add=True)
-
+    
     class Meta:
-        db_table = 'analyses_labo'
+        ordering = ['-date_demande']
+        verbose_name = 'Analyse de laboratoire'
+        verbose_name_plural = 'Analyses de laboratoire'
+    
+    def __str__(self):
+        return f"Labo #{self.id} - Patient {self.patient.nom}"
 
 
 class AnalyseRadio(models.Model):
     consultation = models.ForeignKey(Consultation, on_delete=models.CASCADE, related_name='analyses_radio')
     centre_radio = models.CharField(max_length=150)
+    nom_soignant = models.CharField(max_length=100, blank=True, default='')  # ← AJOUTER
+    tel_soignant = models.CharField(max_length=20, blank=True, default='')   # ← AJOUTER
     type_analyse = models.CharField(max_length=200)
     region_a_examiner = models.CharField(max_length=200)
     motif = models.TextField()
@@ -366,6 +382,10 @@ class AnalyseRadio(models.Model):
 
     class Meta:
         db_table = 'analyses_radio'
+        verbose_name_plural = 'Analyses Radio'
+        
+    def __str__(self):
+        return f"Radio #{self.id} - {self.type_analyse}"
 
 
 # =============================================================================
@@ -511,3 +531,34 @@ class LigneFacturePharmacie(models.Model):
     def save(self, *args, **kwargs):
         self.sous_total = self.quantite * self.prix_unitaire
         super().save(*args, **kwargs)
+
+
+# =============================================================================
+# NOTIFICATIONS
+# =============================================================================
+class Notification(models.Model):
+    """Système de notifications pour le workflow"""
+    RECIPIENT_CHOICES = [
+        ('admin', 'Administrateur'),
+        ('doctor', 'Médecin'),
+        ('patient', 'Patient'),
+        ('pharmacie', 'Pharmacie'),
+        ('caisse', 'Caisse'),
+        ('all', 'Tout le monde'),
+    ]
+    
+    recipient_role = models.CharField(max_length=20, choices=RECIPIENT_CHOICES, default='all')
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    data = models.JSONField(blank=True, null=True, help_text="Données additionnelles en JSON")
+    read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'notifications'
+        ordering = ['-created_at']
+        verbose_name = 'Notification'
+        verbose_name_plural = 'Notifications'
+    
+    def __str__(self):
+        return f"{self.title} ({self.recipient_role})"

@@ -95,18 +95,19 @@ const DoctorManagement: React.FC = () => {
       };
     } else {
       // ✅ CRÉATION : endpoint register-doctor
-      url = 'http://localhost:8000/api/admin/register-doctor/';
-      method = 'POST';
-      payload = {
-        username: formData.username,
-        password: formData.password,
-        email: formData.email,
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        phone: formData.phone,
-        matricule: formData.matricule,
-        specialty: formData.specialty,
-      };
+      
+      url = 'http://localhost:8000/api/auth/register/doctor/';  
+method = 'POST';
+payload = {
+  username: formData.username,
+  password: formData.password,
+  email: formData.email,
+  first_name: formData.first_name,
+  last_name: formData.last_name,
+  phone: formData.phone,
+  matricule: formData.matricule,
+  specialty: formData.specialty,  // 
+};
     }
 
     try {

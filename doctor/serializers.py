@@ -1,142 +1,51 @@
-# doctor/serializers.py
 from rest_framework import serializers
-from django.contrib.auth import get_user_model, authenticate
-from django.contrib.auth.password_validation import validate_password
-from rest_framework.validators import UniqueValidator
-from django.db import transaction
-from .models import (
-    User, DoctorProfile, Patient, Antecedent, Consultation,
-    ExamenOphtalmo, InterventionChirurgicale, ExamenUrologie, ExamenCardiologie,
-    Ordonnance, MedicamentPrescrit, AnalyseLabo, AnalyseRadio,
-    CategorieProduit, Produit, Approvisionnement, Vente, LigneVente,
-    ActeMedical, Facture, Paiement, LigneFactureActe, LigneFacturePharmacie,
-    MembreFamilial, EntreeCarnetMedical
-)
+from django.contrib.auth import get_user_model
+from .models import *
 
 User = get_user_model()
 
 # =============================================================================
-# 1. AUTHENTIFICATION & GESTION UTILISATEURS
+# UTILISATEURS & AUTHENTIFICATION
 # =============================================================================
-
 class UserSerializer(serializers.ModelSerializer):
-    full_name = serializers.SerializerMethodField()
-    role_display = serializers.CharField(source='get_role_display', read_only=True)
-    
     class Meta:
         model = User
-        fields = [
-            'id', 'username', 'email', 'first_name', 'last_name', 'full_name',
-            'role', 'role_display', 'phone', 'specialty', 'is_verified', 
-            'is_active', 'date_joined', 'avatar'
-        ]
-        read_only_fields = ['id', 'date_joined', 'is_verified']
-    
-    def get_full_name(self, obj):
-        return f"{obj.first_name} {obj.last_name}".strip() or obj.username
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'phone', 'specialty', 'is_verified', 'avatar']
+        read_only_fields = ['id', 'is_verified']
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
-    password_confirm = serializers.CharField(write_only=True, required=True)
+    password = serializers.CharField(write_only=True, min_length=8)
     
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name', 'password', 'password_confirm', 'phone']
-        extra_kwargs = {
-            'email': {'required': True, 'validators': [UniqueValidator(queryset=User.objects.all())]},
-            'username': {'validators': [UniqueValidator(queryset=User.objects.all())]}
-        }
-    
-    def validate(self, attrs):
-        if attrs['password'] != attrs.pop('password_confirm'):
-            raise serializers.ValidationError({"password": "Les mots de passe ne correspondent pas."})
-        return attrs
+        fields = ['username', 'email', 'password', 'first_name', 'last_name', 'phone', 'role']
     
     def create(self, validated_data):
-        return User.objects.create_user(**validated_data, is_verified=False)
-
-
-class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
-    password = serializers.CharField(write_only=True)
-    
-    def validate(self, attrs):
-        username = attrs.get('username')
-        password = attrs.get('password')
-        
-        if not username or not password:
-            raise serializers.ValidationError("Nom d'utilisateur et mot de passe requis.")
-        
-        user = authenticate(username=username, password=password)
-        if not user:
-            raise serializers.ValidationError("Identifiants incorrects.")
-        if not user.is_active:
-            raise serializers.ValidationError("Compte désactivé.")
-        if user.role != 'admin' and not user.is_verified:
-            raise serializers.ValidationError("Compte en attente de vérification admin.")
-            
-        attrs['user'] = user
-        return attrs
+        password = validated_data.pop('password')
+        user = User(**validated_data)
+        user.set_password(password)
+        user.save()
+        return user
 
 
 class DoctorProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
-    specialty_display = serializers.CharField(source='get_specialty_display', read_only=True)
     
     class Meta:
         model = DoctorProfile
-        fields = ['id', 'user', 'matricule', 'specialty', 'specialty_display', 'is_active', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'user', 'matricule', 'specialty', 'is_active', 'created_at']
 
-
-class DoctorCreateSerializer(serializers.ModelSerializer):
-    # Champs User
-    username = serializers.CharField(validators=[UniqueValidator(queryset=User.objects.all())])
-    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
-    email = serializers.EmailField(required=True, validators=[UniqueValidator(queryset=User.objects.all())])
-    first_name = serializers.CharField(required=True)
-    last_name = serializers.CharField(required=True)
-    phone = serializers.CharField(required=False)
-    
-    # Champs DoctorProfile
-    matricule = serializers.CharField(required=True)
-    specialty = serializers.ChoiceField(choices=DoctorProfile._meta.get_field('specialty').choices)
-    
-    class Meta:
-        model = User
-        fields = ['username', 'password', 'email', 'first_name', 'last_name', 'phone', 'matricule', 'specialty']
-    
-    def create(self, validated_data):
-        matricule = validated_data.pop('matricule')
-        specialty = validated_data.pop('specialty')
-        
-        with transaction.atomic():
-            user = User.objects.create_user(
-                username=validated_data['username'],
-                password=validated_data['password'],
-                email=validated_data.get('email', ''),
-                first_name=validated_data.get('first_name', ''),
-                last_name=validated_data.get('last_name', ''),
-                phone=validated_data.get('phone', ''),
-                role='doctor',
-                is_active=True,
-                is_verified=True
-            )
-            DoctorProfile.objects.create(user=user, matricule=matricule, specialty=specialty)
-        return user
 
 # =============================================================================
-# 2. PATIENTS & DOSSIER MÉDICAL
+# PATIENTS
 # =============================================================================
-
 class PatientSerializer(serializers.ModelSerializer):
-    sexe_display = serializers.CharField(source='get_sexe_display', read_only=True)
+    user = UserSerializer(read_only=True)
     
     class Meta:
         model = Patient
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class AntecedentSerializer(serializers.ModelSerializer):
@@ -146,186 +55,244 @@ class AntecedentSerializer(serializers.ModelSerializer):
 
 
 class MembreFamilialSerializer(serializers.ModelSerializer):
-    sexe_display = serializers.CharField(source='get_sexe_display', read_only=True)
-    lien_parente_display = serializers.CharField(source='get_lien_parente_display', read_only=True)
-    
     class Meta:
         model = MembreFamilial
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class EntreeCarnetMedicalSerializer(serializers.ModelSerializer):
-    type_service_display = serializers.CharField(source='get_type_service_display', read_only=True)
-    membre = MembreFamilialSerializer(source='membre_familial', read_only=True)
-    
     class Meta:
         model = EntreeCarnetMedical
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at']
+
 
 # =============================================================================
-# 3. CONSULTATIONS & SPÉCIALITÉS
+# UTILISATEURS & AUTHENTIFICATION (Suite)
+# =============================================================================
+class DoctorCreateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=8)
+    matricule = serializers.CharField(max_length=50)
+    specialty = serializers.ChoiceField(choices=[
+        ('ophtalmo', '👁️ Ophtalmologie'),
+        ('chirurgie', '🔪 Chirurgie'),
+        ('urologie', '🧪 Urologie'),
+        ('cardiologie', '❤️ Cardiologie'),
+        ('general', '🩺 Médecine Générale'),
+    ])
+    
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'password', 'first_name', 'last_name', 'phone', 'matricule', 'specialty']
+    
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        matricule = validated_data.pop('matricule')
+        specialty = validated_data.pop('specialty')
+        
+        # Créer l'utilisateur médecin
+        user = User(**validated_data)
+        user.role = 'doctor'
+        user.set_password(password)
+        user.save()
+        
+        # Créer le profil médecin
+        DoctorProfile.objects.create(
+            user=user,
+            matricule=matricule,
+            specialty=specialty
+        )
+        
+        return user
+
+
+# =============================================================================
+# CONSULTATIONS
 # =============================================================================
 
-class ConsultationListSerializer(serializers.ModelSerializer):
+class ConsultationSerializer(serializers.ModelSerializer):
     patient_nom = serializers.CharField(source='patient.nom', read_only=True)
-    doctor_nom = serializers.CharField(source='doctor.last_name', read_only=True)
-    service_display = serializers.CharField(source='get_service_display', read_only=True)
+    patient_prenoms = serializers.CharField(source='patient.prenoms', read_only=True)
+    doctor_username = serializers.CharField(source='doctor.username', read_only=True)
     
     class Meta:
         model = Consultation
-        fields = ['id', 'patient', 'patient_nom', 'doctor', 'doctor_nom', 'service', 
-                  'service_display', 'date_consultation', 'motif_consultation', 'centre_medical']
+        fields = [
+            'id',  # ← ✅ CETTE LIGNE EST OBLIGATOIRE
+            'patient',
+            'patient_nom',
+            'patient_prenoms',
+            'doctor',
+            'doctor_username',
+            'date_consultation',
+            'service',
+            'centre_medical',
+            'nom_soignant',
+            'tel_soignant',
+            'motif_consultation',
+            'histoire_maladie',
+            'signes_fonctionnels',
+            'poids',
+            'taille',
+            'temperature',
+            'ta_bras_gauche',
+            'ta_bras_droit',
+            'pouls',
+            'examen_physique',
+              'observations_cliniques',
+            'created_at',
+        ]
+
+        read_only_fields = ['id', 'date_consultation', 'created_at']
 
 
 class ConsultationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Consultation
         fields = [
+            'id',
             'patient', 'service', 'centre_medical', 'nom_soignant', 'tel_soignant',
             'motif_consultation', 'histoire_maladie', 'signes_fonctionnels',
             'poids', 'taille', 'temperature', 'ta_bras_gauche', 'ta_bras_droit', 'pouls',
             'examen_physique', 'observations_cliniques'
         ]
+
+
+class ConsultationListSerializer(serializers.ModelSerializer):
+    patient_nom = serializers.CharField(source='patient.nom')
+    patient_prenoms = serializers.CharField(source='patient.prenoms')
+    doctor_username = serializers.CharField(source='doctor.username', read_only=True)
     
-    def validate(self, attrs):
-        request = self.context.get('request')
-        if request and request.user.is_doctor:
-            doctor_profile = getattr(request.user, 'doctor_profile', None)
-            if doctor_profile and attrs.get('service') != doctor_profile.specialty:
-                raise serializers.ValidationError(
-                    f"Service invalide. Votre spécialité est : {doctor_profile.get_specialty_display()}"
-                )
-        return attrs
-    
-    def create(self, validated_data):
-        request = self.context.get('request')
-        if request and request.user.is_doctor:
-            validated_data['doctor'] = request.user
-            validated_data['nom_soignant'] = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
-            validated_data['tel_soignant'] = request.user.phone or validated_data.get('tel_soignant', '')
-        return super().create(validated_data)
+    class Meta:
+        model = Consultation
+        fields = [
+            'id', 'patient', 'patient_nom', 'patient_prenoms', 'doctor', 'doctor_username',
+            'date_consultation', 'service', 'centre_medical', 'nom_soignant', 'created_at'
+        ]
 
 
 class ConsultationDetailSerializer(serializers.ModelSerializer):
     patient = PatientSerializer(read_only=True)
     doctor = UserSerializer(read_only=True)
-    service_display = serializers.CharField(source='get_service_display', read_only=True)
-    
-    # Détails spécialités (read-only)
-    ophtalmo_details = serializers.SerializerMethodField()
-    chirurgie_details = serializers.SerializerMethodField()
-    urologie_details = serializers.SerializerMethodField()
-    cardiologie_details = serializers.SerializerMethodField()
-    
-    # Sorties liées
-    ordonnance = serializers.SerializerMethodField()
-    analyses_labo = serializers.SerializerMethodField()
-    analyses_radio = serializers.SerializerMethodField()
     
     class Meta:
         model = Consultation
         fields = '__all__'
-        read_only_fields = ['id', 'date_consultation', 'created_at', 'updated_at']
-    
-    def get_ophtalmo_details(self, obj):
-        return ExamenOphtalmoSerializer(obj.ophtalmo_details).data if hasattr(obj, 'ophtalmo_details') else None
-    def get_chirurgie_details(self, obj):
-        return InterventionChirurgicaleSerializer(obj.chirurgie_details).data if hasattr(obj, 'chirurgie_details') else None
-    def get_urologie_details(self, obj):
-        return ExamenUrologieSerializer(obj.urologie_details).data if hasattr(obj, 'urologie_details') else None
-    def get_cardiologie_details(self, obj):
-        return ExamenCardiologieSerializer(obj.cardiologie_details).data if hasattr(obj, 'cardiologie_details') else None
-    def get_ordonnance(self, obj):
-        return OrdonnanceSerializer(obj.ordonnance).data if hasattr(obj, 'ordonnance') else None
-    def get_analyses_labo(self, obj):
-        return AnalyseLaboSerializer(obj.analyses_labo.all(), many=True).data
-    def get_analyses_radio(self, obj):
-        return AnalyseRadioSerializer(obj.analyses_radio.all(), many=True).data
 
 
-# Serializer de base (fallback pour list/update)
-class ConsultationSerializer(ConsultationListSerializer):
-    pass
-
-
-# Serializers Spécialités (CRUD standard)
+# =============================================================================
+# SPÉCIALITÉS
+# =============================================================================
 class ExamenOphtalmoSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExamenOphtalmo
-        fields = '__all__'
+        fields = [
+           'id', 'consultation',
+           'av_od_loin', 'av_og_loin',
+          'av_od_pres', 'av_og_pres',
+        'paupieres_annexes', 'conjonctive', 'cornee',
+        'chambre_anterieure', 'iris_pupille', 'cristallin',
+        'pression_intraoculaire_od', 'pression_intraoculaire_og',
+        'fond_oeil_od', 'fond_oeil_og',
+        'refraction_auto', 'correction_proposee',
+         ]
+read_only_fields = ['id']  
+
+def validate_consultation(self, value):
+        """Vérifie que la consultation existe"""
+        from .models import Consultation
+        if not Consultation.objects.filter(id=value).exists():
+            raise serializers.ValidationError(f"Consultation {value} n'existe pas")
+        return value
 
 class InterventionChirurgicaleSerializer(serializers.ModelSerializer):
     class Meta:
         model = InterventionChirurgicale
         fields = '__all__'
 
+
 class ExamenUrologieSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExamenUrologie
         fields = '__all__'
+
 
 class ExamenCardiologieSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExamenCardiologie
         fields = '__all__'
 
-# =============================================================================
-# 4. ORDONNANCES & ANALYSES
-# =============================================================================
 
+# =============================================================================
+# ORDONNANCES & MÉDICAMENTS
+# =============================================================================
 class MedicamentPrescritSerializer(serializers.ModelSerializer):
     class Meta:
         model = MedicamentPrescrit
-        fields = '__all__'
+        fields = ['id', 'ordonnance', 'designation', 'posologie', 'quantite', 'duree']
 
 
 class OrdonnanceSerializer(serializers.ModelSerializer):
     medicaments = MedicamentPrescritSerializer(many=True, read_only=True)
     patient_nom = serializers.CharField(source='consultation.patient.nom', read_only=True)
+    patient_prenoms = serializers.CharField(source='consultation.patient.prenoms', read_only=True)
+    consultation_service = serializers.CharField(source='consultation.service', read_only=True)
     
     class Meta:
         model = Ordonnance
-        fields = '__all__'
-        read_only_fields = ['id', 'date_prescription']
+        fields = ['id', 'consultation', 'date_prescription', 'medicaments', 'patient_nom', 'patient_prenoms', 'consultation_service']
 
 
 class OrdonnanceCreateSerializer(serializers.ModelSerializer):
-    medicaments = MedicamentPrescritSerializer(many=True)
+    medicaments = MedicamentPrescritSerializer(many=True, required=False)
     
     class Meta:
         model = Ordonnance
-        fields = ['consultation', 'medicaments']
+        fields = ['id','consultation', 'medicaments']
     
     def create(self, validated_data):
-        med_data = validated_data.pop('medicaments')
-        with transaction.atomic():
-            ord = Ordonnance.objects.create(**validated_data)
-            for m in med_data:
-                MedicamentPrescrit.objects.create(ordonnance=ord, **m)
-        return ord
+        medicaments_data = validated_data.pop('medicaments', [])
+        ordonnance = Ordonnance.objects.create(**validated_data)
+        
+        for med_data in medicaments_data:
+            MedicamentPrescrit.objects.create(ordonnance=ordonnance, **med_data)
+        
+        return ordonnance
 
 
+# =============================================================================
+# ANALYSES (LABO & RADIO)
+# =============================================================================
 class AnalyseLaboSerializer(serializers.ModelSerializer):
     patient_nom = serializers.CharField(source='consultation.patient.nom', read_only=True)
+    consultation_service = serializers.CharField(source='consultation.service', read_only=True)
+    
     class Meta:
         model = AnalyseLabo
-        fields = '__all__'
-        read_only_fields = ['id', 'date_demande']
+        fields = [
+            'id', 'consultation', 'patient', 'service', 'centre_labo', 'nom_soignant',
+            'tel_soignant', 'analyses_demandees', 'motif', 'resultats', 'date_prelevement',
+            'date_demande', 'patient_nom', 'consultation_service'
+        ]
+        read_only_fields = ['id', 'date_demande', 'patient_nom', 'consultation_service']
 
 
 class AnalyseRadioSerializer(serializers.ModelSerializer):
     patient_nom = serializers.CharField(source='consultation.patient.nom', read_only=True)
+    consultation_service = serializers.CharField(source='consultation.service', read_only=True)
+    
     class Meta:
         model = AnalyseRadio
-        fields = '__all__'
-        read_only_fields = ['id', 'date_demande']
+        fields = [
+            'id', 'consultation', 'centre_radio', 'nom_soignant', 'tel_soignant',
+            'type_analyse', 'region_a_examiner', 'motif', 'date_demande',
+            'patient_nom', 'consultation_service'
+        ]
+        read_only_fields = ['id', 'date_demande', 'patient_nom', 'consultation_service']
+
 
 # =============================================================================
-# 5. PHARMACIE & VENTES
+# PHARMACIE & STOCK
 # =============================================================================
-
 class CategorieProduitSerializer(serializers.ModelSerializer):
     class Meta:
         model = CategorieProduit
@@ -338,74 +305,79 @@ class ProduitSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Produit
-        fields = '__all__'
-        read_only_fields = ['id']
+        fields = [
+            'id', 'code_produit', 'designation', 'categorie', 'categorie_nom',
+            'forme_galenique', 'prix_unitaire_achat', 'prix_unitaire_vente',
+            'stock_actuel', 'stock_alerte', 'date_peremption', 'emplacement', 'is_low_stock'
+        ]
 
 
 class ApprovisionnementSerializer(serializers.ModelSerializer):
-    produit_nom = serializers.CharField(source='produit.designation', read_only=True)
-    
     class Meta:
         model = Approvisionnement
         fields = '__all__'
-        read_only_fields = ['id', 'date_reception']
-    
-    def create(self, validated_data):
-        with transaction.atomic():
-            appro = Approvisionnement.objects.create(**validated_data)
-            appro.produit.stock_actuel += appro.quantite_recue
-            appro.produit.save(update_fields=['stock_actuel'])
-        return appro
 
 
 class LigneVenteSerializer(serializers.ModelSerializer):
-    produit_nom = serializers.CharField(source='produit.designation', read_only=True)
+    produit_designation = serializers.CharField(source='produit.designation', read_only=True)
+    
     class Meta:
         model = LigneVente
-        fields = '__all__'
-        read_only_fields = ['id', 'sous_total']
+        fields = ['id', 'vente', 'produit', 'produit_designation', 'quantite', 'prix_unitaire_moment_vente', 'sous_total']
 
 
 class VenteSerializer(serializers.ModelSerializer):
     patient_nom = serializers.CharField(source='patient.nom', read_only=True)
     lignes = LigneVenteSerializer(many=True, read_only=True)
+    
     class Meta:
         model = Vente
-        fields = '__all__'
-        read_only_fields = ['id', 'date_vente', 'montant_total']
+        fields = [
+            'id', 'numero_facture', 'patient', 'patient_nom', 'date_vente',
+            'montant_total', 'statut_paiement', 'lignes'
+        ]
 
 
 class VenteCreateSerializer(serializers.ModelSerializer):
-    lignes = LigneVenteSerializer(many=True)
+    lignes = serializers.ListField(
+        child=serializers.DictField(),
+        write_only=True
+    )
     
     class Meta:
         model = Vente
-        fields = ['patient', 'numero_facture', 'statut_paiement', 'lignes']
+        fields = ['patient', 'numero_facture', 'lignes', 'montant_total']
     
     def create(self, validated_data):
         lignes_data = validated_data.pop('lignes')
-        with transaction.atomic():
-            vente = Vente.objects.create(**validated_data)
-            total = 0
-            for ld in lignes_data:
-                prod = ld['produit']
-                qty = ld['quantite']
-                prix = ld['prix_unitaire_moment_vente']
-                if prod.stock_actuel < qty:
-                    raise serializers.ValidationError(f"Stock insuffisant pour {prod.designation}")
-                prod.stock_actuel -= qty
-                prod.save(update_fields=['stock_actuel'])
-                LigneVente.objects.create(vente=vente, produit=prod, quantite=qty, 
-                                          prix_unitaire_moment_vente=prix, sous_total=qty*prix)
-                total += qty * prix
-            vente.montant_total = total
-            vente.save(update_fields=['montant_total'])
+        vente = Vente.objects.create(**validated_data)
+        
+        for ligne_data in lignes_data:
+            produit = Produit.objects.get(id=ligne_data['produit_id'])
+            quantite = ligne_data['quantite']
+            
+            # Vérifier stock
+            if produit.stock_actuel < quantite:
+                raise serializers.ValidationError(f"Stock insuffisant pour {produit.designation}")
+            
+            # Déduire stock
+            produit.stock_actuel -= quantite
+            produit.save(update_fields=['stock_actuel'])
+            
+            LigneVente.objects.create(
+                vente=vente,
+                produit=produit,
+                quantite=quantite,
+                prix_unitaire_moment_vente=produit.prix_unitaire_vente,
+                sous_total=quantite * produit.prix_unitaire_vente
+            )
+        
         return vente
 
-# =============================================================================
-# 6. FACTURATION & PAIEMENTS
-# =============================================================================
 
+# =============================================================================
+# FACTURATION & PAIEMENTS
+# =============================================================================
 class ActeMedicalSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActeMedical
@@ -413,75 +385,137 @@ class ActeMedicalSerializer(serializers.ModelSerializer):
 
 
 class LigneFactureActeSerializer(serializers.ModelSerializer):
-    acte_libelle = serializers.CharField(source='acte.libelle', read_only=True)
     class Meta:
         model = LigneFactureActe
         fields = '__all__'
-        read_only_fields = ['id', 'sous_total']
 
 
 class LigneFacturePharmacieSerializer(serializers.ModelSerializer):
-    produit_nom = serializers.CharField(source='produit.designation', read_only=True)
     class Meta:
         model = LigneFacturePharmacie
         fields = '__all__'
-        read_only_fields = ['id', 'sous_total']
 
 
-class PaiementSerializer(serializers.ModelSerializer):
+class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Paiement
-        fields = '__all__'
-        read_only_fields = ['id', 'date_paiement']
+        fields = ['id', 'facture', 'date_paiement', 'montant_verse', 'mode_paiement', 'reference_transaction']
 
 
 class FactureSerializer(serializers.ModelSerializer):
     patient_nom = serializers.CharField(source='patient.nom', read_only=True)
-    paiements = PaiementSerializer(many=True, read_only=True)
+    paiements = PaymentSerializer(many=True, read_only=True)
     lignes_actes = LigneFactureActeSerializer(many=True, read_only=True)
     lignes_pharmacie = LigneFacturePharmacieSerializer(many=True, read_only=True)
     
     class Meta:
         model = Facture
-        fields = '__all__'
-        read_only_fields = ['id', 'date_emission', 'montant_total', 'montant_patient']
+        fields = [
+            'id', 'numero_facture', 'patient', 'patient_nom', 'consultation',
+            'date_emission', 'montant_total', 'montant_assurance', 'montant_patient',
+            'statut_paiement', 'paiements', 'lignes_actes', 'lignes_pharmacie'
+        ]
 
 
 class FactureCreateSerializer(serializers.ModelSerializer):
-    lignes_actes = LigneFactureActeSerializer(many=True, required=False)
-    lignes_pharmacie = LigneFacturePharmacieSerializer(many=True, required=False)
+    lignes_actes = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
+    lignes_pharmacie = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
     
     class Meta:
         model = Facture
-        fields = ['patient', 'consultation', 'numero_facture', 'montant_assurance', 
-                  'statut_paiement', 'lignes_actes', 'lignes_pharmacie']
+        fields = ['patient', 'consultation', 'lignes_actes', 'lignes_pharmacie', 'montant_assurance']
     
     def create(self, validated_data):
-        actes_data = validated_data.pop('lignes_actes', [])
-        pharma_data = validated_data.pop('lignes_pharmacie', [])
-        montant_assurance = validated_data.pop('montant_assurance', 0)
+        lignes_actes_data = validated_data.pop('lignes_actes', [])
+        lignes_pharmacie_data = validated_data.pop('lignes_pharmacie', [])
         
-        with transaction.atomic():
-            facture = Facture.objects.create(**validated_data, montant_assurance=montant_assurance)
-            total = 0
+        # Calculer montants
+        montant_total = 0
+        montant_assurance = validated_data.get('montant_assurance', 0)
+        
+        # Créer facture
+        facture = Facture.objects.create(**validated_data)
+        
+        # Lignes actes
+        for ligne_data in lignes_actes_data:
+            acte = ActeMedical.objects.get(id=ligne_data['acte_id'])
+            quantite = ligne_data.get('quantite', 1)
+            sous_total = quantite * acte.montant
+            montant_total += sous_total
             
-            for ad in actes_data:
-                sub = ad['quantite'] * ad['prix_unitaire']
-                LigneFactureActe.objects.create(facture=facture, sous_total=sub, **ad)
-                total += sub
-                
-            for pd in pharma_data:
-                prod = pd['produit']
-                qty = pd['quantite']
-                if prod.stock_actuel < qty:
-                    raise serializers.ValidationError(f"Stock insuffisant pour {prod.designation}")
-                prod.stock_actuel -= qty
-                prod.save(update_fields=['stock_actuel'])
-                sub = qty * pd['prix_unitaire']
-                LigneFacturePharmacie.objects.create(facture=facture, sous_total=sub, **pd)
-                total += sub
-                
-            facture.montant_total = total
-            facture.montant_patient = total - montant_assurance
-            facture.save(update_fields=['montant_total', 'montant_patient'])
+            LigneFactureActe.objects.create(
+                facture=facture,
+                acte=acte,
+                quantite=quantite,
+                prix_unitaire=acte.montant,
+                sous_total=sous_total
+            )
+        
+        # Lignes pharmacie
+        for ligne_data in lignes_pharmacie_data:
+            produit = Produit.objects.get(id=ligne_data['produit_id'])
+            quantite = ligne_data['quantite']
+            sous_total = quantite * produit.prix_unitaire_vente
+            montant_total += sous_total
+            
+            LigneFacturePharmacie.objects.create(
+                facture=facture,
+                produit=produit,
+                quantite=quantite,
+                prix_unitaire=produit.prix_unitaire_vente,
+                sous_total=sous_total
+            )
+        
+        # Mettre à jour montants
+        facture.montant_total = montant_total
+        facture.montant_patient = montant_total - montant_assurance
+        facture.statut_paiement = 'Non payé' if facture.montant_patient > 0 else 'Payé'
+        facture.save(update_fields=['montant_total', 'montant_patient', 'statut_paiement'])
+        
         return facture
+
+
+# =============================================================================
+# NOTIFICATIONS
+# =============================================================================
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'recipient_role', 'title', 'message', 'data', 'read', 'created_at']
+
+
+# =============================================================================
+# WORKFLOW PHARMACIE/CAISSE
+# =============================================================================
+class PrescriptionProductSerializer(serializers.Serializer):
+    """Serializer pour récupérer les produits d'une ordonnance avec stock"""
+    id = serializers.IntegerField(source='medicament.id')
+    name = serializers.CharField(source='medicament.designation')
+    quantity = serializers.IntegerField(default=1)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, source='medicament.prix_unitaire_vente')
+    stock_available = serializers.IntegerField(source='medicament.stock_actuel')
+    prescription_id = serializers.IntegerField(source='medicament.id')
+
+
+class CaisseDataSerializer(serializers.Serializer):
+    """Serializer pour les données de caisse"""
+    ordonnance_id = serializers.IntegerField()
+    consultation_id = serializers.IntegerField()
+    patient_id = serializers.IntegerField()
+    patient_name = serializers.CharField()
+    products = serializers.ListField(child=serializers.DictField())
+    total_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    stock_alerts = serializers.ListField(child=serializers.DictField(), required=False)
+
+
+class PaymentRequestSerializer(serializers.Serializer):
+    """Serializer pour les demandes de paiement"""
+    consultation = serializers.IntegerField()
+    ordonnance = serializers.IntegerField()
+    patient = serializers.IntegerField()
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    payment_method = serializers.CharField()
+    phone_number = serializers.CharField()
+    centre = serializers.CharField()
+    service = serializers.CharField()
+    type = serializers.CharField()

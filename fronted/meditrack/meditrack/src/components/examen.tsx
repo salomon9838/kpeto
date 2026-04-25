@@ -190,7 +190,7 @@ function Exam({ setActiveTab }: { setActiveTab: (tab: string) => void }) {
     try {
       const payload = {
         patient: patientId,              // ← ID OBLIGATOIRE
-        service: "cardiologie",          // ← Service fixe
+        service: "cardio",          // ← Service fixe
         centre_medical: form.centre.trim(),
         nom_soignant: form.doc.trim(),
         tel_soignant: form.tel.trim(),
@@ -582,9 +582,9 @@ function Exam({ setActiveTab }: { setActiveTab: (tab: string) => void }) {
           <div style={styles.debugBox}>
             <div style={{ fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <CheckCircle size={18} color="#22c55e" />
-              <span>✅ Patient sélectionné</span>
+              <span>Patient sélectionné</span>
             </div>
-            <div>Consultation: <strong style={{ color: consultationId ? '#22c55e' : '#64748b' }}>{consultationId}</strong></div>
+           
             <div>Patient ID: <strong style={{ color: '#22c55e' }}>{patientId}</strong></div>
             
           </div>

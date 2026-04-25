@@ -208,7 +208,7 @@ class Consultation(models.Model):
         ('ophtalmo', 'Ophtalmologie'),
         ('chirurgie', 'Chirurgie'),
         ('urologie', 'Urologie'),
-        ('cardiologie', 'Cardiologie'),
+        ('cardio', 'Cardiologie'),
         ('general', 'Médecine Générale'),
     ])
     

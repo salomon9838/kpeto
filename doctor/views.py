@@ -25,6 +25,7 @@ User = get_user_model()
 # PERMISSIONS PERSONNALISÉES
 # =============================================================================
 class IsAdmin(permissions.BasePermission):
+    """Permission personnalisée : seul un utilisateur avec role='admin' peut accéder"""
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'admin'
 
@@ -100,13 +101,13 @@ def register_patient_view(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
-@permission_classes([IsAdmin])
+@permission_classes([IsAdmin])  # ← Seul un admin peut créer un médecin
 def register_doctor_view(request):
     serializer = DoctorCreateSerializer(data=request.data)
     if serializer.is_valid():
         try:
             with transaction.atomic():
-                user = serializer.save()
+                user = serializer.save(role='doctor')  # ← Le rôle est 'doctor', pas 'admin'
                 token, _ = Token.objects.get_or_create(user=user)
                 return Response({
                     'token': token.key,
@@ -230,12 +231,12 @@ def stats_view(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # =============================================================================
-# ADMIN
+# ADMIN — GESTION DES UTILISATEURS
 # =============================================================================
 class AdminUserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdmin]  # ← Permission personnalisée
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['username', 'email', 'first_name', 'last_name', 'phone']
     ordering_fields = ['date_joined', 'last_name', 'role']
@@ -262,56 +263,262 @@ class AdminUserViewSet(viewsets.ModelViewSet):
             return Response({'status': f'Rôle changé en {new_role}'})
         return Response({'error': 'Rôle invalide'}, status=status.HTTP_400_BAD_REQUEST)
 
-
+# =============================================================================
+# ADMIN — GESTION DES MÉDECINS (CRUD COMPLET) ✅ CORRIGÉ
+# =============================================================================
 class AdminDoctorViewSet(viewsets.ModelViewSet):
-    serializer_class = DoctorProfileSerializer 
+    """
+    ViewSet pour la gestion complète des médecins par l'admin.
+    Permissions: Seul un utilisateur avec role='admin' peut accéder.
+    """
+    
+    # ✅ CORRECTION CRITIQUE : Utiliser IsAdmin (not IsAdminUser)
     permission_classes = [IsAdmin]
+    
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['username', 'doctor_profile__matricule', 'first_name', 'last_name']
+    search_fields = ['username', 'doctor_profile__matricule', 'first_name', 'last_name', 'email']
+    ordering_fields = ['date_joined', 'last_name', 'username']
+    ordering = ['-date_joined']
     
     def get_serializer_class(self):
+        """Retourne le serializer approprié selon l'action"""
         if self.action == 'create':
-            return ConsultationCreateSerializer
-        return ConsultationSerializer
-
-    def list(self, request):
-        doctors_qs = User.objects.filter(role='doctor').select_related('doctor_profile')
-        data = []
-        
-        for user in doctors_qs:
-            profile = getattr(user, 'doctor_profile', None)
-            
-            item = {
-                'id': user.id,
-                'username': user.username,
-                'full_name': f"{user.first_name} {user.last_name}".strip(),
-                'email': user.email,
-                'matricule': profile.matricule if profile else '',
-                'specialty': profile.specialty if profile else '',
-                'is_active': profile.is_active if profile else user.is_active,
-                'phone': user.phone or '',
-            }
-            data.append(item)
-            
-        return Response(data)
-
-    @action(detail=True, methods=['patch'])
-    def toggle_active(self, request, pk=None):
-        doctor = self.get_object()
-        if hasattr(doctor, 'doctor_profile'):
-            doctor.doctor_profile.is_active = not doctor.doctor_profile.is_active
-            doctor.doctor_profile.save(update_fields=['is_active'])
-        return Response({'status': 'Statut mis à jour'})
+            return DoctorCreateSerializer
+        if self.action == 'retrieve':
+            return UserSerializer
+        return DoctorProfileSerializer
     
-    @action(detail=True, methods=['patch'])
+    def get_queryset(self):
+        """Retourne uniquement les utilisateurs avec rôle 'doctor'"""
+        return User.objects.filter(
+            role='doctor'
+        ).select_related('doctor_profile').order_by('-date_joined')
+    
+    # ✅ LIST : Liste tous les médecins (format personnalisé)
+    def list(self, request):
+        try:
+            doctors_qs = self.get_queryset()
+            doctors_qs = self.filter_queryset(doctors_qs)
+            
+            data = []
+            for user in doctors_qs:
+                profile = getattr(user, 'doctor_profile', None)
+                
+                item = {
+                    'id': user.id,
+                    'username': user.username,
+                    'full_name': f"{user.first_name or ''} {user.last_name or ''}".strip() or user.username,
+                    'email': user.email,
+                    'matricule': profile.matricule if profile else '',
+                    'specialty': profile.specialty if profile else '',
+                    'is_active': profile.is_active if profile and hasattr(profile, 'is_active') else user.is_active,
+                    'phone': user.phone or profile.phone if profile else user.phone or '',
+                    'date_joined': user.date_joined.isoformat() if user.date_joined else None,
+                }
+                data.append(item)
+                
+            return Response(data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"❌ Error listing doctors: {str(e)}")
+            return Response(
+                {'error': 'Erreur lors de la récupération des médecins', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    # ✅ RETRIEVE : Détails d'un médecin
+    def retrieve(self, request, pk=None):
+        try:
+            doctor = self.get_object()
+            serializer = self.get_serializer(doctor)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {'error': 'Médecin non trouvé', 'details': str(e)},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    # ✅ CREATE : Créer un médecin (via ce ViewSet - optionnel)
+    def create(self, request):
+        try:
+            serializer = self.get_serializer_class()(data=request.data)
+            if serializer.is_valid():
+                with transaction.atomic():
+                    user = serializer.save(role='doctor')
+                    return Response(
+                        {
+                            'id': user.id,
+                            'username': user.username,
+                            'message': 'Médecin créé avec succès'
+                        },
+                        status=status.HTTP_201_CREATED
+                    )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"❌ Error creating doctor: {str(e)}")
+            return Response(
+                {'error': 'Erreur lors de la création', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    # ✅ UPDATE : Modifier un médecin (PUT - remplacement complet)
+    def update(self, request, pk=None):
+        try:
+            doctor = self.get_object()
+            serializer = self.get_serializer_class()(doctor, data=request.data, partial=False)
+            
+            if serializer.is_valid():
+                serializer.save()
+                return Response(
+                    {
+                        'id': doctor.id,
+                        'message': 'Médecin mis à jour avec succès',
+                        'data': serializer.data
+                    },
+                    status=status.HTTP_200_OK
+                )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.error(f"❌ Error updating doctor: {str(e)}")
+            return Response(
+                {'error': 'Erreur lors de la modification', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    # ✅ PARTIAL_UPDATE : Modification partielle (PATCH)
+    def partial_update(self, request, pk=None):
+        try:
+            doctor = self.get_object()
+            serializer = self.get_serializer_class()(doctor, data=request.data, partial=True)
+            
+            if serializer.is_valid():
+                serializer.save()
+                return Response(
+                    {
+                        'id': doctor.id,
+                        'message': 'Médecin mis à jour avec succès',
+                        'data': serializer.data
+                    },
+                    status=status.HTTP_200_OK
+                )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.error(f"❌ Error partially updating doctor: {str(e)}")
+            return Response(
+                {'error': 'Erreur lors de la modification', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    # ✅ DELETE : Supprimer un médecin
+    def destroy(self, request, pk=None):
+        try:
+            doctor = self.get_object()
+            doctor_name = f"{doctor.first_name or ''} {doctor.last_name or doctor.username}".strip()
+            
+            with transaction.atomic():
+                # Supprimer d'abord le profil si existe
+                if hasattr(doctor, 'doctor_profile'):
+                    doctor.doctor_profile.delete()
+                # Puis l'utilisateur
+                doctor.delete()
+            
+            return Response(
+                {'message': f'Médecin "{doctor_name}" supprimé avec succès'},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Error deleting doctor: {str(e)}")
+            return Response(
+                {'error': 'Erreur lors de la suppression', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    # ✅ ACTION : Toggle actif/inactif
+    @action(detail=True, methods=['patch'], permission_classes=[IsAdmin])
+    def toggle_active(self, request, pk=None):
+        """Activer ou désactiver un médecin"""
+        try:
+            doctor = self.get_object()
+            
+            if hasattr(doctor, 'doctor_profile') and doctor.doctor_profile:
+                profile = doctor.doctor_profile
+                profile.is_active = not profile.is_active
+                profile.save(update_fields=['is_active'])
+                
+                return Response(
+                    {
+                        'status': 'success',
+                        'message': f'Médecin {"activé" if profile.is_active else "désactivé"}',
+                        'is_active': profile.is_active,
+                        'doctor_id': doctor.id
+                    },
+                    status=status.HTTP_200_OK
+                )
+            else:
+                # Fallback sur user.is_active si pas de profil
+                doctor.is_active = not doctor.is_active
+                doctor.save(update_fields=['is_active'])
+                
+                return Response(
+                    {
+                        'status': 'success',
+                        'message': f'Médecin {"activé" if doctor.is_active else "désactivé"}',
+                        'is_active': doctor.is_active,
+                        'doctor_id': doctor.id
+                    },
+                    status=status.HTTP_200_OK
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Error toggling doctor active: {str(e)}")
+            return Response(
+                {'error': 'Erreur lors du changement de statut', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    # ✅ ACTION : Changer le mot de passe
+    @action(detail=True, methods=['patch'], permission_classes=[IsAdmin])
     def change_password(self, request, pk=None):
-        doctor = self.get_object()
-        new_pass = request.data.get('new_password')
-        if new_pass and len(new_pass) >= 8:
-            doctor.set_password(new_pass)
+        """Changer le mot de passe d'un médecin"""
+        try:
+            doctor = self.get_object()
+            new_password = request.data.get('new_password')
+            
+            # Validation du mot de passe
+            if not new_password:
+                return Response(
+                    {'error': 'Le mot de passe est requis'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if len(new_password) < 8:
+                return Response(
+                    {'error': 'Le mot de passe doit contenir au moins 8 caractères'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Mise à jour sécurisée du mot de passe (hashage automatique par Django)
+            doctor.set_password(new_password)
             doctor.save(update_fields=['password'])
-            return Response({'status': 'Mot de passe changé'})
-        return Response({'error': 'Minimum 8 caractères requis'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response(
+                {
+                    'status': 'success',
+                    'message': 'Mot de passe changé avec succès',
+                    'doctor_id': doctor.id
+                },
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Error changing password: {str(e)}")
+            return Response(
+                {'error': 'Erreur lors du changement de mot de passe', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 # =============================================================================
 # PROFIL & STATS
@@ -738,8 +945,7 @@ def prepare_products(request):
                 ).first()
                 
                 if produit and produit.stock_actuel >= p['quantity']:
-                    # Réserver le stock (optionnel: créer une réservation temporaire)
-                    pass
+                    pass  # Stock suffisant
                 else:
                     return Response(
                         {'error': f'Stock insuffisant pour {med.designation}'},
@@ -765,12 +971,10 @@ def send_to_caisse(request):
     data = serializer.validated_data
     
     try:
-        # Mettre à jour le statut de l'ordonnance
         ordonnance = Ordonnance.objects.get(id=data['ordonnance_id'])
         ordonnance.statut = 'en_attente_paiement'
         ordonnance.save(update_fields=['statut'])
         
-        # Créer une notification pour la caisse
         Notification.objects.create(
             recipient_role='caisse',
             title='Nouvelle ordonnance à payer',
@@ -809,7 +1013,6 @@ def get_caisse_data(request, ordonnance_id):
         
         total = sum(p['price'] * p['quantity'] for p in products)
         
-        # Vérifier les alertes de stock
         stock_alerts = []
         for med in ordonnance.medicaments.all():
             produit = Produit.objects.filter(designation__iexact=med.designation).first()
@@ -835,10 +1038,6 @@ def get_caisse_data(request, ordonnance_id):
 
 # =============================================================================
 # PAIEMENTS & FACTURATION
-# =============================================================================
-
-# =============================================================================
-# FACTURATION & PAIEMENTS (ViewSets manquants)
 # =============================================================================
 class ActeMedicalViewSet(viewsets.ModelViewSet):
     queryset = ActeMedical.objects.all()
@@ -895,12 +1094,10 @@ def create_payment(request):
     
     try:
         with transaction.atomic():
-            # Créer ou récupérer la facture
             consultation = Consultation.objects.get(id=data['consultation'])
             ordonnance = Ordonnance.objects.get(id=data['ordonnance'])
             patient = Patient.objects.get(id=data['patient'])
             
-            # Créer la facture si elle n'existe pas
             facture, created = Facture.objects.get_or_create(
                 consultation=consultation,
                 defaults={
@@ -912,7 +1109,6 @@ def create_payment(request):
                 }
             )
             
-            # Créer le paiement
             payment = Paiement.objects.create(
                 facture=facture,
                 montant_verse=data['amount'],
@@ -920,16 +1116,13 @@ def create_payment(request):
                 reference_transaction=data.get('phone_number', '')
             )
             
-            # Mettre à jour la facture
             total_paye = facture.paiements.aggregate(t=Sum('montant_verse'))['t'] or 0
             facture.statut_paiement = 'Payé' if total_paye >= facture.montant_patient else 'Partiel'
             facture.save(update_fields=['statut_paiement'])
             
-            # Mettre à jour l'ordonnance
             ordonnance.statut = 'payee'
             ordonnance.save(update_fields=['statut'])
             
-            # Créer des notifications
             Notification.objects.bulk_create([
                 Notification(
                     recipient_role='pharmacie',
@@ -971,7 +1164,6 @@ def generate_invoice(request):
         payment = Paiement.objects.get(id=payment_id)
         patient = Patient.objects.get(id=patient_id)
         
-        # Créer la facture
         invoice = Facture.objects.create(
             patient=patient,
             consultation=payment.facture.consultation if payment.facture else None,
@@ -981,7 +1173,6 @@ def generate_invoice(request):
             statut_paiement='Payé'
         )
         
-        # Ajouter les lignes de pharmacie
         for prod_data in products:
             produit = Produit.objects.filter(designation=prod_data['name']).first()
             if produit:

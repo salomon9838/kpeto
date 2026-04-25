@@ -59,3 +59,12 @@ INFO 2026-04-24 20:35:32,351 views 📊 Stats request - Period: all, User: hh_fi
 INFO 2026-04-24 20:35:33,547 views 📊 Stats request - Period: all, User: hh_fiagan (Médecin)
 INFO 2026-04-24 23:54:01,463 views ✅ Nouvelle ordonnance créée: 13 pour consultation 46
 INFO 2026-04-24 23:55:42,527 views ℹ️ Ordonnance 13 existe déjà pour consultation 46, réutilisation...
+INFO 2026-04-25 10:03:53,178 views ✅ Nouvelle ordonnance créée: 14 pour consultation 51
+INFO 2026-04-25 10:07:34,076 views ℹ️ Ordonnance 14 existe déjà pour consultation 51, réutilisation...
+ERROR 2026-04-25 12:34:14,184 views ❌ Error partially updating doctor: Got AttributeError when attempting to get a value for field `matricule` on serializer `DoctorProfileSerializer`.
+The serializer field might be named incorrectly and not match any attribute or key on the `User` instance.
+Original exception text was: 'User' object has no attribute 'matricule'.
+INFO 2026-04-25 12:39:14,943 views ✅ Nouvelle ordonnance créée: 15 pour consultation 52
+INFO 2026-04-25 12:43:22,632 views ✅ Nouvelle ordonnance créée: 16 pour consultation 53
+INFO 2026-04-25 12:47:36,918 views ✅ Nouvelle ordonnance créée: 17 pour consultation 54
+INFO 2026-04-25 12:54:12,647 views ✅ Nouvelle ordonnance créée: 18 pour consultation 55

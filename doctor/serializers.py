@@ -179,30 +179,14 @@ class ConsultationDetailSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+
 # =============================================================================
 # SPÉCIALITÉS
 # =============================================================================
 class ExamenOphtalmoSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExamenOphtalmo
-        fields = [
-           'id', 'consultation',
-           'av_od_loin', 'av_og_loin',
-          'av_od_pres', 'av_og_pres',
-        'paupieres_annexes', 'conjonctive', 'cornee',
-        'chambre_anterieure', 'iris_pupille', 'cristallin',
-        'pression_intraoculaire_od', 'pression_intraoculaire_og',
-        'fond_oeil_od', 'fond_oeil_og',
-        'refraction_auto', 'correction_proposee',
-         ]
-read_only_fields = ['id']  
-
-def validate_consultation(self, value):
-        """Vérifie que la consultation existe"""
-        from .models import Consultation
-        if not Consultation.objects.filter(id=value).exists():
-            raise serializers.ValidationError(f"Consultation {value} n'existe pas")
-        return value
+        fields = '__all__'
 
 class InterventionChirurgicaleSerializer(serializers.ModelSerializer):
     class Meta:

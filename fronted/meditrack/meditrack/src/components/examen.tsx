@@ -167,118 +167,280 @@ function Exam({ setActiveTab }: { setActiveTab: (tab: string) => void }) {
     setForm({ ...form, [e.target.id]: e.target.value });
   };
 
-  // 💾 Sauvegarde avec API Django (VÉRIFICATION patientId OBLIGATOIRE)
-  const saveExam = async () => {
-    // ✅ VÉRIFICATION STRICTE : patientId OBLIGATOIRE
-    if (!patientId) {
+  // 💾 Sauvegarde avec API Django (VÉRIFICATION patientId OBLIGATOIRE + Validation médicale)
+const saveExam = async () => {
+  // ✅ VÉRIFICATION STRICTE : patientId OBLIGATOIRE
+  if (!patientId) {
+    showNotification(
+      'error', 
+      'Erreur critique', 
+      'Patient non sélectionné. Impossible d\'enregistrer la consultation.',
+      ['Veuillez recharger la page ou retourner à la liste des patients']
+    );
+    return;
+  }
+
+  // ✅ VALIDATION FRONTEND DES CHAMPS OBLIGATOIRES
+  if (!form.centre.trim() || !form.doc.trim() || !form.tel.trim()) {
+    showNotification('error', 'Champs obligatoires', 'Veuillez remplir le centre, le médecin et le téléphone.');
+    return;
+  }
+
+  // ✅ VALIDATION DES VALEURS MÉDICALES (pour éviter les erreurs 400)
+  
+  // Température : 35-42°C (valeurs médicalement plausibles)
+  if (form.temperature) {
+    const temp = parseFloat(form.temperature);
+    if (isNaN(temp) || temp < 35 || temp > 42) {
       showNotification(
         'error', 
-        'Erreur critique', 
-        'Patient non sélectionné. Impossible d\'enregistrer la consultation.',
-        ['Veuillez recharger la page ou retourner à la liste des patients']
+        'Température invalide', 
+        'La température doit être comprise entre 35°C et 42°C.',
+        [`Valeur saisie: ${form.temperature}°C`]
       );
       return;
     }
+  }
 
-    // Validation frontend des champs obligatoires
-    if (!form.centre.trim() || !form.doc.trim() || !form.tel.trim()) {
-      showNotification('error', 'Champs obligatoires', 'Veuillez remplir le centre, le médecin et le téléphone.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const payload = {
-        patient: patientId,              // ← ID OBLIGATOIRE
-        service: "cardio",          // ← Service fixe
-        centre_medical: form.centre.trim(),
-        nom_soignant: form.doc.trim(),
-        tel_soignant: form.tel.trim(),
-        motif_consultation: 'Consultation cardiologique',
-        poids: form.poids ? parseFloat(form.poids) : null,
-        taille: form.taille ? parseFloat(form.taille) : null,
-        temperature: form.temperature ? parseFloat(form.temperature) : null,
-        ta_bras_gauche: form.ta_gauche.trim() || null,
-        ta_bras_droit: form.ta_droit.trim() || null,
-        pouls: form.pouls ? parseInt(form.pouls, 10) : null,
-        observations_cliniques: form.observations.trim() || null,
-      };
-
-      console.log('📤 Payload cardiologie:', payload);
-
-      // ✅ Appel API via apiFetch
-      const newConsultation = await apiFetch<any>('consultations/', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-
-      const newConsultationId = newConsultation?.id;
-      if (!newConsultationId) {
-        throw new Error('L\'API n\'a pas retourné d\'ID de consultation');
-      }
-      
-      console.log('✅ Consultation cardiologie créée:', newConsultationId);
-
-      // ✅ Stockage des IDs pour le workflow
-      localStorage.setItem('current_consultation_id', String(newConsultationId));
-      localStorage.setItem('current_patient_id', String(patientId));
-      localStorage.setItem('current_workflow_step', 'ordonnance');
-
-      // ✅ Notification succès
+  // Poids : 0.5-300 kg
+  if (form.poids) {
+    const poids = parseFloat(form.poids);
+    if (isNaN(poids) || poids < 0.5 || poids > 300) {
       showNotification(
-        'success',
-        'Examen cardiologique enregistré',
-        'Données sauvegardées avec succès.',
-        [`👨‍⚕️ ${form.doc}`, `🏥 ${form.centre}`]
+        'error', 
+        'Poids invalide', 
+        'Le poids doit être compris entre 0.5 kg et 300 kg.',
+        [`Valeur saisie: ${form.poids} kg`]
       );
-
-      // Reset formulaire
-      setForm({
-        centre: "", doc: "", tel: "",
-        poids: "", taille: "", temperature: "",
-        ta_gauche: "", ta_droit: "", pouls: "",
-        observations: "",
-      });
-
-      // ✅✅✅ REDIRECTION AUTOMATIQUE VERS ORDONNANCE CARDIO
-      setTimeout(() => {
-        console.log('🚀 Navigation vers ordonnance avec IDs:', {
-          consultationId: newConsultationId,
-          patientId
-        });
-        
-        // Navigation via setActiveTab
-        if (setActiveTab) {
-          setActiveTab('ordonnance');
-        } else {
-          navigate('/cardiologie/ordonnance', {
-            state: { 
-              consultationId: newConsultationId,
-              patientId,
-              step: 'ordonnance'
-            } 
-          });
-        }
-      }, 1500);
-
-    } catch (err: any) {
-      console.error('❌ Erreur API:', err);
-      
-      if (err.message === 'Authentification requise') {
-        showNotification('info', 'Redirection...', 'Veuillez vous reconnecter pour continuer.');
-        return;
-      }
-      
-      const errorDetails = err.validationErrors 
-        ? Object.entries(err.validationErrors).map(([field, msgs]) => 
-            `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
-        : [err.message || 'Erreur inconnue'];
-      
-      showNotification('error', 'Échec de l\'enregistrement', errorDetails.join(', '));
-    } finally {
-      setLoading(false);
+      return;
     }
+  }
+
+  // Taille : 20-250 cm
+  if (form.taille) {
+    const taille = parseFloat(form.taille);
+    if (isNaN(taille) || taille < 20 || taille > 250) {
+      showNotification(
+        'error', 
+        'Taille invalide', 
+        'La taille doit être comprise entre 20 cm et 250 cm.',
+        [`Valeur saisie: ${form.taille} cm`]
+      );
+      return;
+    }
+  }
+
+  // Pouls : 30-220 bpm
+  if (form.pouls) {
+    const pouls = parseInt(form.pouls, 10);
+    if (isNaN(pouls) || pouls < 30 || pouls > 220) {
+      showNotification(
+        'error', 
+        'Pouls invalide', 
+        'Le pouls doit être compris entre 30 et 220 bpm.',
+        [`Valeur saisie: ${form.pouls} bpm`]
+      );
+      return;
+    }
+  }
+
+  // TA : format "XX/YY" avec valeurs plausibles
+  const validateTA = (ta: string, label: string): boolean => {
+    if (!ta) return true;
+    const parts = ta.split('/');
+    if (parts.length !== 2) {
+      showNotification('error', `${label} invalide`, 'Format attendu: "12/8" (systolique/diastolique).');
+      return false;
+    }
+    const sys = parseInt(parts[0], 10);
+    const dia = parseInt(parts[1], 10);
+    if (isNaN(sys) || isNaN(dia) || sys < 60 || sys > 250 || dia < 40 || dia > 150) {
+      showNotification(
+        'error', 
+        `${label} invalide`, 
+        'TA systolique: 60-250 mmHg, diastolique: 40-150 mmHg.',
+        [`Valeur saisie: ${ta}`]
+      );
+      return false;
+    }
+    return true;
   };
+
+  if (!validateTA(form.ta_gauche, 'TA bras gauche') || !validateTA(form.ta_droit, 'TA bras droit')) {
+    return;
+  }
+
+  setLoading(true);
+  try {
+    // ✅ PAYLOAD AVEC VALEURS CORRECTES
+    const payload = {
+      patient: patientId,              // ← ID OBLIGATOIRE (number)
+      service: "cardio",          // ← DOIT correspondre EXACTEMENT à doctor_profile.specialty
+      centre_medical: form.centre.trim(),
+      nom_soignant: form.doc.trim(),
+      tel_soignant: form.tel.trim(),
+      motif_consultation: 'Consultation cardiologique',
+      poids: form.poids ? parseFloat(form.poids) : null,
+      taille: form.taille ? parseFloat(form.taille) : null,
+      temperature: form.temperature ? parseFloat(form.temperature) : null,
+      ta_bras_gauche: form.ta_gauche.trim() || null,
+      ta_bras_droit: form.ta_droit.trim() || null,
+      pouls: form.pouls ? parseInt(form.pouls, 10) : null,
+      observations_cliniques: form.observations.trim() || null,
+    };
+
+    console.log('📤 Payload cardiologie:', JSON.stringify(payload, null, 2));
+
+    // ✅ APPEL API AVEC GESTION D'ERREUR AMÉLIORÉE
+    // On utilise fetch directement pour mieux voir les erreurs Django
+    const token = localStorage.getItem('access_token');
+    const response = await fetch('http://localhost:8000/api/consultations/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    console.log('📥 Status HTTP:', response.status);
+    console.log('📥 Content-Type:', response.headers.get('content-type'));
+
+    const responseText = await response.text();
+    console.log('📥 Response body:', responseText);
+
+    if (!response.ok) {
+      // ✅ Tenter de parser JSON pour afficher les erreurs de validation Django
+      try {
+        const errorData = JSON.parse(responseText);
+        console.error('❌ Erreurs de validation Django:', errorData);
+        
+        // Traduction des noms de champs pour l'affichage
+        const fieldLabels: Record<string, string> = {
+          patient: 'Patient',
+          service: 'Service',
+          centre_medical: 'Centre médical',
+          nom_soignant: 'Nom du soignant',
+          tel_soignant: 'Téléphone',
+          motif_consultation: 'Motif',
+          poids: 'Poids',
+          taille: 'Taille',
+          temperature: 'Température',
+          ta_bras_gauche: 'TA bras gauche',
+          ta_bras_droit: 'TA bras droit',
+          pouls: 'Pouls',
+          observations_cliniques: 'Observations',
+        };
+
+        const errorMessages = Object.entries(errorData).map(([field, msgs]) => {
+          const label = fieldLabels[field] || field;
+          const messages = Array.isArray(msgs) ? msgs.join(', ') : msgs;
+          return `🔴 ${label}: ${messages}`;
+        });
+
+        throw new Error(`Validation échouée:\n${errorMessages.join('\n')}`);
+        
+      } catch (parseErr) {
+        // Si ce n'est pas du JSON, afficher le texte brut
+        throw new Error(`Erreur ${response.status}: ${responseText.substring(0, 300)}`);
+      }
+    }
+
+    // ✅ Réponse réussie
+    const newConsultation = JSON.parse(responseText);
+    const newConsultationId = newConsultation?.id;
+    
+    if (!newConsultationId) {
+      throw new Error('L\'API n\'a pas retourné d\'ID de consultation');
+    }
+    
+    console.log('✅ Consultation cardiologie créée:', newConsultationId);
+
+    // ✅ Stockage des IDs pour le workflow
+    localStorage.setItem('current_consultation_id', String(newConsultationId));
+    localStorage.setItem('current_patient_id', String(patientId));
+    localStorage.setItem('current_workflow_step', 'ordonnance');
+
+    // ✅ Notification succès
+    showNotification(
+      'success',
+      'Examen cardiologique enregistré',
+      'Données sauvegardées avec succès.',
+      [`👨‍⚕️ ${form.doc}`, `🏥 ${form.centre}`]
+    );
+
+    // Reset formulaire
+    setForm({
+      centre: "", doc: "", tel: "",
+      poids: "", taille: "", temperature: "",
+      ta_gauche: "", ta_droit: "", pouls: "",
+      observations: "",
+    });
+
+    // ✅✅✅ REDIRECTION AUTOMATIQUE VERS ORDONNANCE CARDIO
+    setTimeout(() => {
+      console.log('🚀 Navigation vers ordonnance avec IDs:', {
+        consultationId: newConsultationId,
+        patientId
+      });
+      
+      if (setActiveTab) {
+        setActiveTab('ordonnance');
+      } else {
+        navigate('/cardiologie/ordonnance', {
+          state: { 
+            consultationId: newConsultationId,
+            patientId,
+            step: 'ordonnance'
+          } 
+        });
+      }
+    }, 1500);
+
+  } catch (err: any) {
+    console.error('❌ Erreur API:', err);
+    
+    // Gestion des erreurs d'authentification
+    if (err.message === 'Authentification requise' || err.message?.includes('401')) {
+      showNotification('info', 'Session expirée', 'Veuillez vous reconnecter pour continuer.');
+      localStorage.removeItem('access_token');
+      setTimeout(() => navigate('/login'), 2000);
+      return;
+    }
+    
+    // Gestion des erreurs de validation Django
+    let errorDetails: string[] = [];
+    
+    if (err.validationErrors) {
+      errorDetails = Object.entries(err.validationErrors).map(([field, msgs]) => 
+        `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`
+      );
+    } else if (err.message) {
+      // Extraire les lignes qui commencent par 🔴 (erreurs de validation)
+      const lines = err.message.split('\n');
+      errorDetails = lines.filter((l: string) => l.startsWith('🔴'));
+      
+      if (errorDetails.length === 0) {
+        // Si pas d'erreurs formatées, afficher le message brut
+        errorDetails = [err.message.split('\n')[0]];
+      }
+    } else {
+      errorDetails = ['Erreur inconnue - Vérifiez la console (F12)'];
+    }
+    
+    console.error('🚨 Détails des erreurs:', errorDetails);
+    
+    showNotification(
+      'error', 
+      'Échec de l\'enregistrement', 
+      errorDetails[0] || 'Le serveur a rejeté la demande.',
+      errorDetails.length > 1 ? errorDetails.slice(1) : undefined
+    );
+    
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ❌ Annulation
   const cancelExam = () => {

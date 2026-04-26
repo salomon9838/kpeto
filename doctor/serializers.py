@@ -144,6 +144,32 @@ class ConsultationSerializer(serializers.ModelSerializer):
 
         read_only_fields = ['id', 'date_consultation', 'created_at']
 
+    
+    def validate_service(self, value):
+        """Normalise le service pour accepter cardiologie/cardio"""
+        service_mapping = {
+            'cardiologie': 'cardio',
+            'cardio': 'cardio',
+            'ophtalmologie': 'ophtalmo',
+            'ophtalmo': 'ophtalmo',
+            'chirurgie': 'chirurgie',
+            'urologie': 'urologie',
+            'médecine générale': 'general',
+            'general': 'general',
+        }
+        
+        normalized = service_mapping.get(value.lower().strip(), value)
+        
+        # Vérifier que c'est un choix valide
+        valid_choices = [choice[0] for choice in Consultation.SERVICE_CHOICES]
+        if normalized not in valid_choices:
+            raise serializers.ValidationError(
+                f"'{value}' n'est pas un choix valide. "
+                f"Choix acceptés : {', '.join(valid_choices)}"
+            )
+        
+        return normalized
+
 
 class ConsultationCreateSerializer(serializers.ModelSerializer):
     class Meta:

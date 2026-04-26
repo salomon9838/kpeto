@@ -2,7 +2,6 @@ import React from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import GlobalStyles from './components/Common/GlobalStyles';
 
-
 // =============================================================================
 // IMPORTS AUTH & ADMIN
 // =============================================================================
@@ -14,7 +13,7 @@ import AdminDashboard from './components/Admin/Dashboard';
 import DoctorManagement from './components/Admin/DoctorManagement';
 
 // =============================================================================
-// IMPORTS MODALS
+// IMPORTS MODALS & NOTIFICATIONS
 // =============================================================================
 import PayementSection from './components/Modals/PaymentModal';
 import FamilyMemberModal from './components/Modals/FamilyMemberModal';
@@ -22,6 +21,7 @@ import FamilyMemberHistoryModal from './components/Modals/FamilyMemberHistoryMod
 import CarnetModal from './components/Modals/CarnetModal';
 import HelpModal from './components/Modals/HelpModal';
 import TwoFactorModal from './components/Modals/TwoFactorModal';
+import NotificationPanel from './components/Common/NotificationPanel';
 
 // =============================================================================
 // IMPORTS DOCTEUR GÉNÉRAL
@@ -47,6 +47,7 @@ import ChirurgieExam from './componen/ExamForm';
 import ChirurgieOrdonnance from './componen/OrdonnanceForm';
 import ChirurgieLab from './componen/LabForm';
 import ChirurgieRadio from './componen/RadioForm';
+import ChirurgieIntervention from './componen/InterventionForm';
 
 // =============================================================================
 // IMPORTS UROLOGIE
@@ -55,6 +56,7 @@ import UrologieExam from './component/ExamForm';
 import UrologieOrdonnance from './component/OrdonnanceForm';
 import UrologieLab from './component/LabForm';
 import UrologieRadio from './component/RadioForm';
+import UrologieSpecial from './component/UrologieSpecialForm';
 
 // =============================================================================
 // IMPORTS CARDIOLOGIE
@@ -62,9 +64,11 @@ import UrologieRadio from './component/RadioForm';
 import CardioExam from './components/examen';
 import CardioOrdonnance from './components/Ordonnance';
 import CardioRadio from './components/Radio';
+import CardioECG from './components/CardioECG';
+import CardioEcho from './components/CardioEcho';
 
 // =============================================================================
-// IMPORTS PATIENT
+// IMPORTS PATIENT & SUIVI
 // =============================================================================
 import Password from './patient/ChangePassword';
 import PatientDashboard from './patient/Dashboard'; 
@@ -73,6 +77,9 @@ import OldConsultation from './patient/OldConsultation';
 import Statistics from './patient/Statistics'; 
 import Settings from './patient/Settings'; 
 import Profile from './patient/Profile';
+import PatientResults from './patient/ResultsView';
+import PatientPrescriptions from './patient/PrescriptionsView';
+import PatientAppointments from './patient/AppointmentsView';
 
 // =============================================================================
 // IMPORTS PHARMACIE
@@ -82,17 +89,29 @@ import PharmaInventory from './MediPharma/src/Pages/Inventory';
 import PharmaOrders from './MediPharma/src/Pages/Orders';
 import PharmaChat from './MediPharma/src/Pages/Chat';
 import PharmaSettings from './MediPharma/src/Pages/Settings';
+import PharmaDispensation from './MediPharma/src/Pages/Dispensation';
 
 // =============================================================================
-// IMPORTS WORKFLOW (NOUVEAU)
+// IMPORTS WORKFLOW COMPLET
 // =============================================================================
 import PharmacieWorkflow from './components/Pharmacie/PharmacieWorkflow';
 import CaisseWorkflow from './components/Caisse/CaisseWorkflow';
+import LaboWorkflow from './components/Labo/LaboWorkflow';
+import RadioWorkflow from './components/Radio/RadioWorkflow';
+
+// =============================================================================
+// IMPORTS RAPPORTS & DOCUMENTS
+// =============================================================================
+import MedicalReport from './components/Reports/MedicalReport';
+import PrescriptionPDF from './components/Reports/PrescriptionPDF';
+import LabResultsPDF from './components/Reports/LabResultsPDF';
+import RadioReportPDF from './components/Reports/RadioReportPDF';
 
 // =============================================================================
 // COMPOSANTS COMMUNS
 // =============================================================================
 import ProgressBar from './components/Common/ProgressBar';
+import PatientTimeline from './components/Common/PatientTimeline';
 
 // =============================================================================
 // TYPES
@@ -125,23 +144,44 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 // =============================================================================
-// PROTECTION SOUPLE : Affiche la page mais avertit si non authentifié
+// PROTECTION ROUTE UTILISATEUR
 // =============================================================================
-const SoftPrivateRoute: React.FC<PrivateRouteProps> = ({ children, requiredSpecialty, adminOnly }) => {
+const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, requiredSpecialty, adminOnly }) => {
   const token = localStorage.getItem('access_token');
   const userSpecialty = localStorage.getItem('user_specialty');
   const userRole = localStorage.getItem('user_role');
   
-  // ✅ TOUJOURS afficher la page (pas de redirection automatique)
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (adminOnly && userRole !== 'admin') {
+    return <Navigate to="/patient" replace />;
+  }
+  
+  if (requiredSpecialty && userSpecialty !== requiredSpecialty && userRole !== 'admin') {
+    return <Navigate to="/patient" replace />;
+  }
+  
   return <>{children}</>;
 };
 
 // =============================================================================
-// LAYOUT SERVICE (SANS NAVBAR)
+// LAYOUT SERVICE AVEC WORKFLOW COMPLET
 // =============================================================================
 const ServiceLayout: React.FC<ServiceLayoutProps> = ({ children, specialty, color, steps }) => {
   const location = useLocation();
-  const currentStep = steps.indexOf(location.pathname);
+  const currentStep = steps.findIndex(step => location.pathname.includes(step));
+  const navigate = useNavigate();
+  
+  const handleExit = () => {
+    if (window.confirm('Voulez-vous vraiment quitter ce workflow ? Les données non sauvegardées seront perdues.')) {
+      localStorage.removeItem('current_consultation_id');
+      localStorage.removeItem('current_patient_id');
+      localStorage.removeItem('current_workflow_step');
+      navigate('/patient');
+    }
+  };
   
   return (
     <div style={{ minHeight: '100vh', background: '#f0f4f8' }}>
@@ -152,32 +192,52 @@ const ServiceLayout: React.FC<ServiceLayoutProps> = ({ children, specialty, colo
         boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {specialty === 'ophtalmo' && '👁️'}
-            {specialty === 'chirurgie' && '🔪'}
-            {specialty === 'urologie' && '🧪'}
-            {specialty === 'cardiologie' && '❤️'}
-            {specialty === 'general' && '🩺'}
-            {specialty.charAt(0).toUpperCase() + specialty.slice(1)}
-          </h2>
-          <button 
-            onClick={() => {
-              localStorage.removeItem('user_specialty');
-              localStorage.removeItem('current_consultation_id');
-              window.location.href = '/patient';
-            }}
-            style={{ 
-              background: 'rgba(255,255,255,0.2)', 
-              border: 'none', 
-              color: 'white', 
-              padding: '8px 16px', 
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: '600'
-            }}
-          >
-            Retour au tableau de bord
-          </button>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {specialty === 'ophtalmo' && '👁️'}
+              {specialty === 'chirurgie' && '🔪'}
+              {specialty === 'urologie' && '🧪'}
+              {specialty === 'cardiologie' && '❤️'}
+              {specialty === 'general' && '🩺'}
+              {specialty.charAt(0).toUpperCase() + specialty.slice(1)}
+            </h2>
+            <div style={{ fontSize: '0.85rem', opacity: 0.9, marginTop: '4px' }}>
+              Workflow médical complet • Patient ID: {localStorage.getItem('current_patient_id') || 'N/A'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              onClick={() => navigate('/patient/notifications')}
+              style={{ 
+                background: 'rgba(255,255,255,0.2)', 
+                border: 'none', 
+                color: 'white', 
+                padding: '8px 16px', 
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              🔔 Notifications
+            </button>
+            <button 
+              onClick={handleExit}
+              style={{ 
+                background: 'rgba(255,255,255,0.2)', 
+                border: 'none', 
+                color: 'white', 
+                padding: '8px 16px', 
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              Quitter
+            </button>
+          </div>
         </div>
       </header>
       
@@ -207,24 +267,45 @@ const PatientLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         alignItems: 'center',
         boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
       }}>
-        <h2 style={{ margin: 0, fontSize: '1.5rem' }}>👤 Espace Médecin</h2>
-        <button 
-          onClick={() => {
-            localStorage.clear();
-            navigate('/login');
-          }}
-          style={{ 
-            background: 'rgba(255,255,255,0.2)', 
-            border: 'none', 
-            color: 'white', 
-            padding: '8px 16px', 
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontWeight: '600'
-          }}
-        >
-          Déconnexion
-        </button>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>👤 Espace Médecin</h2>
+          <div style={{ fontSize: '0.85rem', opacity: 0.9, marginTop: '4px' }}>
+            Spécialité: {localStorage.getItem('user_specialty') || 'Non définie'}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button 
+            onClick={() => navigate('/patient/notifications')}
+            style={{ 
+              background: 'rgba(255,255,255,0.2)', 
+              border: 'none', 
+              color: 'white', 
+              padding: '8px 16px', 
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            🔔 Notifications
+          </button>
+          <button 
+            onClick={() => {
+              localStorage.clear();
+              navigate('/login');
+            }}
+            style={{ 
+              background: 'rgba(255,255,255,0.2)', 
+              border: 'none', 
+              color: 'white', 
+              padding: '8px 16px', 
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            Déconnexion
+          </button>
+        </div>
       </header>
       <div style={{ padding: '30px', maxWidth: '1200px', margin: '0 auto' }}>
         {children}
@@ -250,24 +331,45 @@ const PharmaLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         alignItems: 'center',
         boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
       }}>
-        <h2 style={{ margin: 0, fontSize: '1.5rem' }}>💊 MediPharma</h2>
-        <button 
-          onClick={() => {
-            localStorage.clear();
-            navigate('/login');
-          }}
-          style={{ 
-            background: 'rgba(255,255,255,0.2)', 
-            border: 'none', 
-            color: 'white', 
-            padding: '8px 16px', 
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontWeight: '600'
-          }}
-        >
-          Déconnexion
-        </button>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>💊 MediPharma</h2>
+          <div style={{ fontSize: '0.85rem', opacity: 0.9, marginTop: '4px' }}>
+            Gestion pharmacie & dispensation
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button 
+            onClick={() => navigate('/pharmacie/notifications')}
+            style={{ 
+              background: 'rgba(255,255,255,0.2)', 
+              border: 'none', 
+              color: 'white', 
+              padding: '8px 16px', 
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            🔔 Notifications
+          </button>
+          <button 
+            onClick={() => {
+              localStorage.clear();
+              navigate('/login');
+            }}
+            style={{ 
+              background: 'rgba(255,255,255,0.2)', 
+              border: 'none', 
+              color: 'white', 
+              padding: '8px 16px', 
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            Déconnexion
+          </button>
+        </div>
       </header>
       <div style={{ padding: '30px', maxWidth: '1200px', margin: '0 auto' }}>
         {children}
@@ -293,7 +395,12 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         alignItems: 'center',
         boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
       }}>
-        <h2 style={{ margin: 0, fontSize: '1.5rem' }}>🔐 Panel Administrateur</h2>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>🔐 Panel Administrateur</h2>
+          <div style={{ fontSize: '0.85rem', opacity: 0.9, marginTop: '4px' }}>
+            Gestion complète du système
+          </div>
+        </div>
         <button 
           onClick={() => {
             localStorage.clear();
@@ -320,11 +427,74 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 // =============================================================================
-// APP PRINCIPAL
+// LAYOUT PATIENT PORTAL (POUR LES PATIENTS)
+// =============================================================================
+const PatientPortalLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const navigate = useNavigate();
+  
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
+      <header style={{ 
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+        padding: '15px 30px', 
+        color: 'white',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+      }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>🏥 MediTrack Patient</h2>
+          <div style={{ fontSize: '0.85rem', opacity: 0.9, marginTop: '4px' }}>
+            Accédez à vos résultats et prescriptions
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button 
+            onClick={() => navigate('/patient-portal/results')}
+            style={{ 
+              background: 'rgba(255,255,255,0.2)', 
+              border: 'none', 
+              color: 'white', 
+              padding: '8px 16px', 
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            📋 Mes Résultats
+          </button>
+          <button 
+            onClick={() => {
+              localStorage.clear();
+              navigate('/login');
+            }}
+            style={{ 
+              background: 'rgba(255,255,255,0.2)', 
+              border: 'none', 
+              color: 'white', 
+              padding: '8px 16px', 
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            Déconnexion
+          </button>
+        </div>
+      </header>
+      <div style={{ padding: '30px', maxWidth: '1200px', margin: '0 auto' }}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+// =============================================================================
+// APP PRINCIPALE
 // =============================================================================
 export default function App() {
   const navigate = useNavigate();
-  const handleCancelAction = () => navigate(-1); 
 
   return (
     <>
@@ -334,8 +504,9 @@ export default function App() {
         {/* ==================== AUTHENTIFICATION ==================== */}
         <Route path="/login" element={<LoginForm />} />
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/select-service" element={<ServiceSelection />} />
         
-        {/* ==================== ROUTES ADMIN (STRICTEMENT PROTÉGÉES) ==================== */}
+        {/* ==================== ROUTES ADMIN ==================== */}
         <Route path="/admin/dashboard" element={
           <AdminRoute>
             <AdminLayout>
@@ -357,388 +528,479 @@ export default function App() {
             <AdminLayout>
               <div style={{ padding: '20px', background: 'white', borderRadius: '12px' }}>
                 <h2>👥 Gestion des Patients</h2>
-                <p style={{ color: '#64748b' }}>Fonctionnalité à implémenter...</p>
+                <p style={{ color: '#64748b' }}>Liste complète des patients, historique médical, statistiques...</p>
               </div>
             </AdminLayout>
           </AdminRoute>
         } />
         
-        {/* ==================== ESPACE MÉDECIN (DASHBOARD EN PREMIER) ==================== */}
+        <Route path="/admin/statistics" element={
+          <AdminRoute>
+            <AdminLayout>
+              <div style={{ padding: '20px', background: 'white', borderRadius: '12px' }}>
+                <h2>📊 Statistiques Globales</h2>
+                <p style={{ color: '#64748b' }}>Tableaux de bord, indicateurs de performance, rapports...</p>
+              </div>
+            </AdminLayout>
+          </AdminRoute>
+        } />
+        
+        {/* ==================== ESPACE MÉDECIN (DASHBOARD) ==================== */}
         <Route path="/patient" element={
-          <SoftPrivateRoute>
+          <PrivateRoute>
             <PatientLayout>
               <PatientDashboard />
             </PatientLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/new-consultation" element={
-          <SoftPrivateRoute>
+          <PrivateRoute>
             <PatientLayout>
               <NewConsultationForm />
             </PatientLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/old-consultation" element={
-          <SoftPrivateRoute>
+          <PrivateRoute>
             <PatientLayout>
               <OldConsultation />
             </PatientLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/patient/results" element={
+          <PrivateRoute>
+            <PatientLayout>
+              <PatientResults />
+            </PatientLayout>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/patient/prescriptions" element={
+          <PrivateRoute>
+            <PatientLayout>
+              <PatientPrescriptions />
+            </PatientLayout>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/patient/appointments" element={
+          <PrivateRoute>
+            <PatientLayout>
+              <PatientAppointments />
+            </PatientLayout>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/patient/notifications" element={
+          <PrivateRoute>
+            <PatientLayout>
+              <NotificationPanel />
+            </PatientLayout>
+          </PrivateRoute>
         } />
         
         <Route path="/statistics" element={
-          <SoftPrivateRoute>
+          <PrivateRoute>
             <PatientLayout>
               <Statistics />
             </PatientLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/settings" element={
-          <SoftPrivateRoute>
+          <PrivateRoute>
             <PatientLayout>
               <Settings />
             </PatientLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/profile" element={
-          <SoftPrivateRoute>
+          <PrivateRoute>
             <PatientLayout>
               <Profile />
             </PatientLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/password" element={
-          <SoftPrivateRoute>
+          <PrivateRoute>
             <PatientLayout>
               <Password />
             </PatientLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
-
-        
         
         {/* ==================== VÉRIFICATION MÉDECIN + SERVICE ==================== */}
         <Route path="/verify-and-choose-service" element={
-          <SoftPrivateRoute>
+          <PrivateRoute>
             <VerifyAndChooseService />
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
-        {/* ==================== MÉDECINE GÉNÉRALE ==================== */}
+        {/* ==================== MÉDECINE GÉNÉRALE - WORKFLOW COMPLET ==================== */}
         <Route path="/doctor/exam" element={
-          <SoftPrivateRoute requiredSpecialty="general">
+          <PrivateRoute requiredSpecialty="general">
             <ServiceLayout specialty="general" color="#3498db" steps={[
-              '/doctor/exam', '/doctor/ordonnance', '/doctor/lab', '/doctor/radio', '/payement'
+              'Examen', 'Ordonnance', 'Labo', 'Radio', 'Pharmacie', 'Paiement'
             ]}>
               <ExamForm />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/doctor/ordonnance" element={
-          <SoftPrivateRoute requiredSpecialty="general">
+          <PrivateRoute requiredSpecialty="general">
             <ServiceLayout specialty="general" color="#3498db" steps={[
-              '/doctor/exam', '/doctor/ordonnance', '/doctor/lab', '/doctor/radio', '/payement'
+              'Examen', 'Ordonnance', 'Labo', 'Radio', 'Pharmacie', 'Paiement'
             ]}>
               <OrdonnanceForm />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/doctor/lab" element={
-          <SoftPrivateRoute requiredSpecialty="general">
+          <PrivateRoute requiredSpecialty="general">
             <ServiceLayout specialty="general" color="#3498db" steps={[
-              '/doctor/exam', '/doctor/ordonnance', '/doctor/lab', '/doctor/radio', '/payement'
+              'Examen', 'Ordonnance', 'Labo', 'Radio', 'Pharmacie', 'Paiement'
             ]}>
               <LabForm />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/doctor/radio" element={
-          <SoftPrivateRoute requiredSpecialty="general">
+          <PrivateRoute requiredSpecialty="general">
             <ServiceLayout specialty="general" color="#3498db" steps={[
-              '/doctor/exam', '/doctor/ordonnance', '/doctor/lab', '/doctor/radio', '/payement'
+              'Examen', 'Ordonnance', 'Labo', 'Radio', 'Pharmacie', 'Paiement'
             ]}>
               <RadioForm />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
-        {/* ==================== OPHTALMOLOGIE ==================== */}
+        {/* ==================== OPHTALMOLOGIE - WORKFLOW COMPLET ==================== */}
         <Route path="/ophtalmo/consultation" element={
-          <SoftPrivateRoute requiredSpecialty="ophtalmo">
+          <PrivateRoute requiredSpecialty="ophtalmo">
             <ServiceLayout specialty="ophtalmo" color="#00a896" steps={[
-              '/ophtalmo/consultation', '/ophtalmo/ordonnance', '/ophtalmo/analyse-ophtalmo', '/ophtalmo/labo', '/ophtalmo/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Analyses', 'Labo', 'Radio', 'Paiement'
             ]}>
               <OphtalmoConsultation />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/ophtalmo/ordonnance" element={
-          <SoftPrivateRoute requiredSpecialty="ophtalmo">
+          <PrivateRoute requiredSpecialty="ophtalmo">
             <ServiceLayout specialty="ophtalmo" color="#00a896" steps={[
-              '/ophtalmo/consultation', '/ophtalmo/ordonnance', '/ophtalmo/analyse-ophtalmo', '/ophtalmo/labo', '/ophtalmo/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Analyses', 'Labo', 'Radio', 'Paiement'
             ]}>
               <OphtalmoOrdonnance />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/ophtalmo/analyse-ophtalmo" element={
-          <SoftPrivateRoute requiredSpecialty="ophtalmo">
+          <PrivateRoute requiredSpecialty="ophtalmo">
             <ServiceLayout specialty="ophtalmo" color="#00a896" steps={[
-              '/ophtalmo/consultation', '/ophtalmo/ordonnance', '/ophtalmo/analyse-ophtalmo', '/ophtalmo/labo', '/ophtalmo/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Analyses', 'Labo', 'Radio', 'Paiement'
             ]}>
               <OphtalmoAnalyse />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/ophtalmo/labo" element={
-          <SoftPrivateRoute requiredSpecialty="ophtalmo">
+          <PrivateRoute requiredSpecialty="ophtalmo">
             <ServiceLayout specialty="ophtalmo" color="#00a896" steps={[
-              '/ophtalmo/consultation', '/ophtalmo/ordonnance', '/ophtalmo/analyse-ophtalmo', '/ophtalmo/labo', '/ophtalmo/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Analyses', 'Labo', 'Radio', 'Paiement'
             ]}>
               <OphtalmoLabo />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/ophtalmo/radio" element={
-          <SoftPrivateRoute requiredSpecialty="ophtalmo">
+          <PrivateRoute requiredSpecialty="ophtalmo">
             <ServiceLayout specialty="ophtalmo" color="#00a896" steps={[
-              '/ophtalmo/consultation', '/ophtalmo/ordonnance', '/ophtalmo/analyse-ophtalmo', '/ophtalmo/labo', '/ophtalmo/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Analyses', 'Labo', 'Radio', 'Paiement'
             ]}>
               <OphtalmoRadio />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
-        {/* ==================== CHIRURGIE ==================== */}
+        {/* ==================== CHIRURGIE - WORKFLOW COMPLET ==================== */}
         <Route path="/chirurgie/consultation" element={
-          <SoftPrivateRoute requiredSpecialty="chirurgie">
+          <PrivateRoute requiredSpecialty="chirurgie">
             <ServiceLayout specialty="chirurgie" color="#e74c3c" steps={[
-              '/chirurgie/consultation', '/chirurgie/ordonnance', '/chirurgie/labo', '/chirurgie/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Labo', 'Radio', 'Intervention', 'Paiement'
             ]}>
               <ChirurgieExam />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/chirurgie/ordonnance" element={
-          <SoftPrivateRoute requiredSpecialty="chirurgie">
+          <PrivateRoute requiredSpecialty="chirurgie">
             <ServiceLayout specialty="chirurgie" color="#e74c3c" steps={[
-              '/chirurgie/consultation', '/chirurgie/ordonnance', '/chirurgie/labo', '/chirurgie/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Labo', 'Radio', 'Intervention', 'Paiement'
             ]}>
               <ChirurgieOrdonnance />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/chirurgie/labo" element={
-          <SoftPrivateRoute requiredSpecialty="chirurgie">
+          <PrivateRoute requiredSpecialty="chirurgie">
             <ServiceLayout specialty="chirurgie" color="#e74c3c" steps={[
-              '/chirurgie/consultation', '/chirurgie/ordonnance', '/chirurgie/labo', '/chirurgie/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Labo', 'Radio', 'Intervention', 'Paiement'
             ]}>
               <ChirurgieLab />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/chirurgie/radio" element={
-          <SoftPrivateRoute requiredSpecialty="chirurgie">
+          <PrivateRoute requiredSpecialty="chirurgie">
             <ServiceLayout specialty="chirurgie" color="#e74c3c" steps={[
-              '/chirurgie/consultation', '/chirurgie/ordonnance', '/chirurgie/labo', '/chirurgie/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Labo', 'Radio', 'Intervention', 'Paiement'
             ]}>
               <ChirurgieRadio />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
-        {/* ==================== UROLOGIE ==================== */}
+        <Route path="/chirurgie/intervention" element={
+          <PrivateRoute requiredSpecialty="chirurgie">
+            <ServiceLayout specialty="chirurgie" color="#e74c3c" steps={[
+              'Consultation', 'Ordonnance', 'Labo', 'Radio', 'Intervention', 'Paiement'
+            ]}>
+              <ChirurgieIntervention />
+            </ServiceLayout>
+          </PrivateRoute>
+        } />
+        
+        {/* ==================== UROLOGIE - WORKFLOW COMPLET ==================== */}
         <Route path="/urologie/consultation" element={
-          <SoftPrivateRoute requiredSpecialty="urologie">
+          <PrivateRoute requiredSpecialty="urologie">
             <ServiceLayout specialty="urologie" color="#2980b9" steps={[
-              '/urologie/consultation', '/urologie/ordonnance', '/urologie/labo', '/urologie/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Labo', 'Radio', 'Examens Spéciaux', 'Paiement'
             ]}>
               <UrologieExam />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/urologie/ordonnance" element={
-          <SoftPrivateRoute requiredSpecialty="urologie">
+          <PrivateRoute requiredSpecialty="urologie">
             <ServiceLayout specialty="urologie" color="#2980b9" steps={[
-              '/urologie/consultation', '/urologie/ordonnance', '/urologie/labo', '/urologie/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Labo', 'Radio', 'Examens Spéciaux', 'Paiement'
             ]}>
               <UrologieOrdonnance />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/urologie/labo" element={
-          <SoftPrivateRoute requiredSpecialty="urologie">
+          <PrivateRoute requiredSpecialty="urologie">
             <ServiceLayout specialty="urologie" color="#2980b9" steps={[
-              '/urologie/consultation', '/urologie/ordonnance', '/urologie/labo', '/urologie/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Labo', 'Radio', 'Examens Spéciaux', 'Paiement'
             ]}>
               <UrologieLab />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/urologie/radio" element={
-          <SoftPrivateRoute requiredSpecialty="urologie">
+          <PrivateRoute requiredSpecialty="urologie">
             <ServiceLayout specialty="urologie" color="#2980b9" steps={[
-              '/urologie/consultation', '/urologie/ordonnance', '/urologie/labo', '/urologie/radio', '/payement'
+              'Consultation', 'Ordonnance', 'Labo', 'Radio', 'Examens Spéciaux', 'Paiement'
             ]}>
               <UrologieRadio />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
-        {/* ==================== CARDIOLOGIE ==================== */}
+        <Route path="/urologie/special" element={
+          <PrivateRoute requiredSpecialty="urologie">
+            <ServiceLayout specialty="urologie" color="#2980b9" steps={[
+              'Consultation', 'Ordonnance', 'Labo', 'Radio', 'Examens Spéciaux', 'Paiement'
+            ]}>
+              <UrologieSpecial />
+            </ServiceLayout>
+          </PrivateRoute>
+        } />
+        
+        {/* ==================== CARDIOLOGIE - WORKFLOW COMPLET ==================== */}
         <Route path="/cardiologie/examen" element={
-          <SoftPrivateRoute requiredSpecialty="cardiologie">
+          <PrivateRoute requiredSpecialty="cardiologie">
             <ServiceLayout specialty="cardiologie" color="#c0392b" steps={[
-              '/cardiologie/examen', '/cardiologie/ordonnance', '/cardiologie/radio', '/payement'
+              'Examen', 'Ordonnance', 'ECG', 'Écho', 'Radio', 'Paiement'
             ]}>
               <CardioExam />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         <Route path="/cardiologie/ordonnance" element={
-          <SoftPrivateRoute requiredSpecialty="cardiologie">
+          <PrivateRoute requiredSpecialty="cardiologie">
             <ServiceLayout specialty="cardiologie" color="#c0392b" steps={[
-              '/cardiologie/examen', '/cardiologie/ordonnance', '/cardiologie/radio', '/payement'
+              'Examen', 'Ordonnance', 'ECG', 'Écho', 'Radio', 'Paiement'
             ]}>
               <CardioOrdonnance />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/cardiologie/ecg" element={
+          <PrivateRoute requiredSpecialty="cardiologie">
+            <ServiceLayout specialty="cardiologie" color="#c0392b" steps={[
+              'Examen', 'Ordonnance', 'ECG', 'Écho', 'Radio', 'Paiement'
+            ]}>
+              <CardioECG />
+            </ServiceLayout>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/cardiologie/echo" element={
+          <PrivateRoute requiredSpecialty="cardiologie">
+            <ServiceLayout specialty="cardiologie" color="#c0392b" steps={[
+              'Examen', 'Ordonnance', 'ECG', 'Écho', 'Radio', 'Paiement'
+            ]}>
+              <CardioEcho />
+            </ServiceLayout>
+          </PrivateRoute>
         } />
         
         <Route path="/cardiologie/radio" element={
-          <SoftPrivateRoute requiredSpecialty="cardiologie">
+          <PrivateRoute requiredSpecialty="cardiologie">
             <ServiceLayout specialty="cardiologie" color="#c0392b" steps={[
-              '/cardiologie/examen', '/cardiologie/ordonnance', '/cardiologie/radio', '/payement'
+              'Examen', 'Ordonnance', 'ECG', 'Écho', 'Radio', 'Paiement'
             ]}>
               <CardioRadio />
             </ServiceLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
         {/* ==================== PAIEMENT ==================== */}
         <Route path="/payement" element={
-          <SoftPrivateRoute>
+          <PrivateRoute>
             <div style={{ minHeight: '100vh', background: '#f0f4f8', padding: '30px' }}>
               <PayementSection 
                 isOpen={true} 
-                onClose={() => window.location.href = '/patient'} 
+                onClose={() => navigate('/patient')} 
                 onSubmit={() => {}} 
                 initialType="consultation" 
               />
             </div>
-          </SoftPrivateRoute>
+          </PrivateRoute>
         } />
         
-        <Route path="/payement/add-family" element={
-          <SoftPrivateRoute>
-            <FamilyMemberModal isOpen={true} onClose={() => window.history.back()} />
-          </SoftPrivateRoute>
-        } />
-        
-        <Route path="/payement/family-history" element={
-          <SoftPrivateRoute>
-            <FamilyMemberHistoryModal isOpen={true} onClose={() => window.history.back()} />
-          </SoftPrivateRoute>
-        } />
-        
-        <Route path="/payement/carnet" element={
-          <SoftPrivateRoute>
-            <CarnetModal isOpen={true} onClose={() => window.history.back()} />
-          </SoftPrivateRoute>
-        } />
-        
-        <Route path="/payement/security" element={
-          <SoftPrivateRoute>
-            <TwoFactorModal isOpen={true} onClose={() => window.history.back()} />
-          </SoftPrivateRoute>
-        } />
-        
-        <Route path="/payement/help" element={
-          <SoftPrivateRoute>
-            <HelpModal isOpen={true} onClose={() => window.history.back()} />
-          </SoftPrivateRoute>
-        } />
-        
-        {/* ==================== PHARMACIE ==================== */}
-        <Route path="/pharmacie" element={
-          <SoftPrivateRoute>
-            <PharmaLayout>
-              <Navigate to="/pharmacie/dashboard" replace />
-            </PharmaLayout>
-          </SoftPrivateRoute>
-        } />
-        
-        <Route path="/pharmacie/inventory" element={
-          <SoftPrivateRoute>
-            <PharmaLayout>
-              <PharmaInventory />
-            </PharmaLayout>
-          </SoftPrivateRoute>
-        } />
-        
-        <Route path="/pharmacie/orders" element={
-          <SoftPrivateRoute>
-            <PharmaLayout>
-              <PharmaOrders />
-            </PharmaLayout>
-          </SoftPrivateRoute>
-        } />
-        
-        <Route path="/pharmacie/chat" element={
-          <SoftPrivateRoute>
-            <PharmaLayout>
-              <PharmaChat />
-            </PharmaLayout>
-          </SoftPrivateRoute>
-        } />
-        
-        <Route path="/pharmacie/settings" element={
-          <SoftPrivateRoute>
-            <PharmaLayout>
-              <PharmaSettings />
-            </PharmaLayout>
-          </SoftPrivateRoute>
-        } />
-        
-        {/* ==================== WORKFLOW PHARMACIE/CAISSE (NOUVEAU) ==================== */}
+        {/* ==================== WORKFLOWS PHARMACIE/LABO/RADIO/CAISSE ==================== */}
         <Route path="/pharmacie/dashboard" element={
-          <SoftPrivateRoute>
+          <PrivateRoute>
             <PharmaLayout>
               <PharmacieWorkflow />
             </PharmaLayout>
-          </SoftPrivateRoute>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/pharmacie/inventory" element={
+          <PrivateRoute>
+            <PharmaLayout>
+              <PharmaInventory />
+            </PharmaLayout>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/pharmacie/orders" element={
+          <PrivateRoute>
+            <PharmaLayout>
+              <PharmaOrders />
+            </PharmaLayout>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/pharmacie/dispensation" element={
+          <PrivateRoute>
+            <PharmaLayout>
+              <PharmaDispensation />
+            </PharmaLayout>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/labo/workflow" element={
+          <PrivateRoute>
+            <PharmaLayout>
+              <LaboWorkflow />
+            </PharmaLayout>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/radio/workflow" element={
+          <PrivateRoute>
+            <PharmaLayout>
+              <RadioWorkflow />
+            </PharmaLayout>
+          </PrivateRoute>
         } />
         
         <Route path="/caisse" element={
-          <SoftPrivateRoute>
+          <PrivateRoute>
             <div style={{ minHeight: '100vh', background: '#f4f7f6' }}>
               <CaisseWorkflow />
             </div>
-          </SoftPrivateRoute>
+          </PrivateRoute>
+        } />
+        
+        {/* ==================== PATIENT PORTAL (RÉSULTATS & PRESCRIPTIONS) ==================== */}
+        <Route path="/patient-portal/results" element={
+          <PrivateRoute>
+            <PatientPortalLayout>
+              <PatientResults />
+            </PatientPortalLayout>
+          </PrivateRoute>
+        } />
+        
+        <Route path="/patient-portal/prescriptions" element={
+          <PrivateRoute>
+            <PatientPortalLayout>
+              <PatientPrescriptions />
+            </PatientPortalLayout>
+          </PrivateRoute>
+        } />
+        
+        {/* ==================== RAPPORTS & DOCUMENTS PDF ==================== */}
+        <Route path="/reports/medical/:consultationId" element={
+          <PrivateRoute>
+            <MedicalReport />
+          </PrivateRoute>
+        } />
+        
+        <Route path="/reports/prescription/:ordonnanceId" element={
+          <PrivateRoute>
+            <PrescriptionPDF />
+          </PrivateRoute>
+        } />
+        
+        <Route path="/reports/lab/:labId" element={
+          <PrivateRoute>
+            <LabResultsPDF />
+          </PrivateRoute>
+        } />
+        
+        <Route path="/reports/radio/:radioId" element={
+          <PrivateRoute>
+            <RadioReportPDF />
+          </PrivateRoute>
         } />
         
         {/* ==================== REDIRECTIONS PAR DÉFAUT ==================== */}
         <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/select-service" element={<Navigate to="/patient" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
         
       </Routes>

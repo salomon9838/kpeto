@@ -651,17 +651,57 @@ class ConsultationViewSet(viewsets.ModelViewSet):
         if self.action == 'create':
             return ConsultationCreateSerializer
         return ConsultationListSerializer
+ 
+    
     
     def perform_create(self, serializer):
         user = self.request.user
         extra = {}
+        
         if user.is_authenticated and user.is_doctor:
             extra['doctor'] = user
             extra['nom_soignant'] = f"{user.first_name} {user.last_name}".strip() or user.username
             extra['tel_soignant'] = user.phone or ''
-            if hasattr(user, 'doctor_profile') and serializer.validated_data.get('service') != user.doctor_profile.specialty:
-                raise serializers.ValidationError(f"Service invalide. Votre spécialité : {user.doctor_profile.get_specialty_display()}")
-        serializer.save(**extra)
+            
+            # ✅ CORRECTION : Gérer les variantes de spécialités
+            if hasattr(user, 'doctor_profile'):
+                doctor_specialty = user.doctor_profile.specialty  # ex: "cardiologie"
+                requested_service = serializer.validated_data.get('service')  # ex: "cardio"
+                
+                # Mapping des spécialités (accepte les deux formats)
+                specialty_mapping = {
+                    'ophtalmo': ['ophtalmo', 'ophtalmologie', '👁️ Ophtalmologie'],
+                    'chirurgie': ['chirurgie', '🔪 Chirurgie'],
+                    'urologie': ['urologie', '🧪 Urologie'],
+                    'cardio': ['cardio', 'cardiologie', '❤️ Cardiologie'],  # ← Accepte les 3
+                    'general': ['general', 'médecine générale', '🩺 Médecine Générale'],
+                }
+                
+                # Trouver la spécialité du médecin dans le mapping
+                doctor_valid_services = []
+                for key, variants in specialty_mapping.items():
+                    if doctor_specialty.lower() in variants or doctor_specialty.lower() == key:
+                        doctor_valid_services = variants
+                        break
+                
+                # Vérifier si le service demandé est valide pour ce médecin
+                if requested_service.lower() not in [s.lower() for s in doctor_valid_services]:
+                    raise serializers.ValidationError(
+                        f"Service invalide. Votre spécialité est : {doctor_specialty}. "
+                        f"Vous ne pouvez créer des consultations que pour votre spécialité."
+                    )
+                
+                # Utiliser la valeur courte (key) pour la sauvegarde
+                for key, variants in specialty_mapping.items():
+                    if requested_service.lower() in [v.lower() for v in variants]:
+                        serializer.save(service=key, **extra)
+                        return
+                
+                serializer.save(**extra)
+            else:
+                serializer.save(**extra)
+        else:
+            serializer.save()
     
     @action(detail=True, methods=['get'])
     def ordonnance(self, request, pk=None):

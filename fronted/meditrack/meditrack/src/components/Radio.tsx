@@ -595,7 +595,7 @@ function Radio({ setActiveTab }: { setActiveTab: (tab: string) => void }) {
           <div style={styles.debugBox}>
             <div style={{ fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <CheckCircle size={18} color="#22c55e" />
-              <span>✅ Patient sélectionné</span>
+              <span>Patient sélectionné</span>
             </div>
             
            <div>Consultation: <strong style={{ color: consultationId ? '#22c55e' : '#64748b' }}>{consultationId}</strong></div>

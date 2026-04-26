@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from django.core.validators import RegexValidator
+from django.conf import settings
 
 # =============================================================================
 # VALIDATEURS GLOBAUX
@@ -562,3 +563,30 @@ class Notification(models.Model):
     
     def __str__(self):
         return f"{self.title} ({self.recipient_role})"
+    
+
+    # À la fin de doctor/models.py
+
+class ChatMessage(models.Model):
+    """Message de chat entre patient/pharmacien/médecin"""
+    consultation = models.ForeignKey('Consultation', on_delete=models.CASCADE, related_name='chat_messages')
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_chat_messages')
+    
+    content = models.TextField()
+    sender_role = models.CharField(max_length=20, choices=[
+        ('patient', 'Patient'),
+        ('pharmacist', 'Pharmacien'),
+        ('doctor', 'Médecin'),
+        ('admin', 'Administrateur'),
+    ])
+    
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = 'Message de chat'
+        verbose_name_plural = 'Messages de chat'
+    
+    def __str__(self):
+        return f"{self.sender_role}: {self.content[:50]}..."

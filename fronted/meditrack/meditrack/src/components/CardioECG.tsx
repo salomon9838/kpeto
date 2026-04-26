@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { apiFetch } from '../../api/api';
+import { apiFetch } from '../api/api';
 import { FaHeart, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
 
 export default function CardioECG() {

@@ -17,7 +17,8 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     # ====================== API PRINCIPALE (IMPORTANT) ======================
-    path('api/', include('doctor.urls')),   # ← Toutes les routes de l'API sont sous /api/
+    path('api/', include('doctor.urls')), 
+      path('api/pharmacie/', include('pharmacie.urls')), 
 
     
 ]
@@ -25,3 +26,4 @@ urlpatterns = [
 # Médias en développement
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+

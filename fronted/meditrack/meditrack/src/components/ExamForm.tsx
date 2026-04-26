@@ -498,7 +498,7 @@ export default function ExamForm(): React.ReactElement {
         <div style={styles.debugBox}>
           <div style={{ fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             {idsReady ? <FaCheckCircle color="#22c55e" /> : <FaExclamationTriangle color="#f97316" />}
-            {idsReady ? '✅ Patient ID reçu' : '⚠️ Patient ID manquant'}
+            {idsReady ? ' Patient ID reçu' : '⚠️ Patient ID manquant'}
           </div>
           <div>Patient: <strong style={{ color: patientId ? '#22c55e' : '#ef4444' }}>{patientId || '❌'}</strong></div>
           {!idsReady && (

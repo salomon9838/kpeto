@@ -1,6 +1,6 @@
 import React, { useState, useEffect, CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { apiFetch } from '../../api/api';
+import { apiFetch } from '../api/api';
 import { FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaTint, FaUserMd, FaBuilding, FaPhone, FaRedo, FaArrowLeft } from 'react-icons/fa';
 
 type NotificationType = 'success' | 'error' | 'info';

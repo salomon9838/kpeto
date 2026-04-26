@@ -654,54 +654,46 @@ class ConsultationViewSet(viewsets.ModelViewSet):
  
     
     
-    def perform_create(self, serializer):
-        user = self.request.user
-        extra = {}
+    # Dans ConsultationViewSet.perform_create()
+
+def perform_create(self, serializer):
+    user = self.request.user
+    extra = {}
+    
+    if user.is_authenticated and user.is_doctor:
+        extra['doctor'] = user
+        extra['nom_soignant'] = f"{user.first_name} {user.last_name}".strip() or user.username
+        extra['tel_soignant'] = user.phone or ''
         
-        if user.is_authenticated and user.is_doctor:
-            extra['doctor'] = user
-            extra['nom_soignant'] = f"{user.first_name} {user.last_name}".strip() or user.username
-            extra['tel_soignant'] = user.phone or ''
+        if hasattr(user, 'doctor_profile'):
+            doctor_specialty = user.doctor_profile.specialty
+            requested_service = serializer.validated_data.get('service')
             
-            # ✅ CORRECTION : Gérer les variantes de spécialités
-            if hasattr(user, 'doctor_profile'):
-                doctor_specialty = user.doctor_profile.specialty  # ex: "cardiologie"
-                requested_service = serializer.validated_data.get('service')  # ex: "cardio"
-                
-                # Mapping des spécialités (accepte les deux formats)
-                specialty_mapping = {
-                    'ophtalmo': ['ophtalmo', 'ophtalmologie', '👁️ Ophtalmologie'],
-                    'chirurgie': ['chirurgie', '🔪 Chirurgie'],
-                    'urologie': ['urologie', '🧪 Urologie'],
-                    'cardio': ['cardio', 'cardiologie', '❤️ Cardiologie'],  # ← Accepte les 3
-                    'general': ['general', 'médecine générale', '🩺 Médecine Générale'],
-                }
-                
-                # Trouver la spécialité du médecin dans le mapping
-                doctor_valid_services = []
-                for key, variants in specialty_mapping.items():
-                    if doctor_specialty.lower() in variants or doctor_specialty.lower() == key:
-                        doctor_valid_services = variants
-                        break
-                
-                # Vérifier si le service demandé est valide pour ce médecin
-                if requested_service.lower() not in [s.lower() for s in doctor_valid_services]:
-                    raise serializers.ValidationError(
-                        f"Service invalide. Votre spécialité est : {doctor_specialty}. "
-                        f"Vous ne pouvez créer des consultations que pour votre spécialité."
-                    )
-                
-                # Utiliser la valeur courte (key) pour la sauvegarde
-                for key, variants in specialty_mapping.items():
-                    if requested_service.lower() in [v.lower() for v in variants]:
-                        serializer.save(service=key, **extra)
-                        return
-                
-                serializer.save(**extra)
-            else:
-                serializer.save(**extra)
+            # Mapping flexible
+            specialty_mapping = {
+                'cardiologie': ['cardiologie', 'cardio'],
+                'cardio': ['cardiologie', 'cardio'],
+                'ophtalmologie': ['ophtalmologie', 'ophtalmo'],
+                'ophtalmo': ['ophtalmologie', 'ophtalmo'],
+                'chirurgie': ['chirurgie'],
+                'urologie': ['urologie'],
+                'general': ['general', 'médecine générale'],
+            }
+            
+            allowed = specialty_mapping.get(doctor_specialty, [doctor_specialty])
+            if requested_service not in allowed:
+                raise serializers.ValidationError(
+                    f"Service '{requested_service}' non autorisé. "
+                    f"Votre spécialité: '{doctor_specialty}'. "
+                    f"Autorisés: {', '.join(allowed)}"
+                )
+            
+            # Normaliser et sauvegarder
+            serializer.save(service=allowed[0], **extra)
         else:
-            serializer.save()
+            serializer.save(**extra)
+    else:
+        serializer.save()
     
     @action(detail=True, methods=['get'])
     def ordonnance(self, request, pk=None):
@@ -717,6 +709,65 @@ class ConsultationViewSet(viewsets.ModelViewSet):
             'labo': AnalyseLaboSerializer(consultation.analyses_labo.all(), many=True).data,
             'radio': AnalyseRadioSerializer(consultation.analyses_radio.all(), many=True).data
         })
+# Dans ConsultationViewSet, ajouter ces actions:
+
+@action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+def messages(self, request, pk=None):
+    """Récupérer les messages d'une consultation"""
+    consultation = self.get_object()
+    messages = consultation.chat_messages.select_related('sender').order_by('created_at')
+    
+    data = []
+    for msg in messages:
+        data.append({
+            'id': msg.id,
+            'content': msg.content,
+            'sender_role': msg.sender_role,
+            'sender_name': f"{msg.sender.first_name or ''} {msg.sender.last_name or msg.sender.username}".strip(),
+            'created_at': msg.created_at.isoformat(),
+            'is_read': msg.is_read,
+            'consultation_id': consultation.id,
+            'patient_id': consultation.patient.id if consultation.patient else None,
+        })
+    
+    return Response(data)
+
+@action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+def messages(self, request, pk=None):
+    """Envoyer un message dans une consultation"""
+    consultation = self.get_object()
+    content = request.data.get('content', '').strip()
+    
+    if not content:
+        return Response({'error': 'Le message ne peut pas être vide'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Déterminer le rôle de l'expéditeur
+    sender_role = 'pharmacist' if request.user.role == 'pharmacie' else request.user.role
+    
+    message = ChatMessage.objects.create(
+        consultation=consultation,
+        sender=request.user,
+        content=content,
+        sender_role=sender_role,
+    )
+    
+    # Notifier les autres participants (à implémenter avec WebSocket ou polling)
+    
+    return Response({
+        'id': message.id,
+        'content': message.content,
+        'sender_role': message.sender_role,
+        'sender_name': f"{request.user.first_name or ''} {request.user.last_name or request.user.username}".strip(),
+        'created_at': message.created_at.isoformat(),
+        'is_read': True,
+    }, status=status.HTTP_201_CREATED)
+
+@action(detail=True, methods=['patch'], permission_classes=[permissions.IsAuthenticated])
+def messages_read(self, request, pk=None):
+    """Marquer tous les messages comme lus"""
+    consultation = self.get_object()
+    consultation.chat_messages.filter(is_read=False).update(is_read=True)
+    return Response({'status': 'marked_as_read'})
 
 # =============================================================================
 # SPÉCIALITÉS
@@ -1267,6 +1318,8 @@ def mark_notification_read(request, notification_id):
         return Response({'status': 'read'})
     except Notification.DoesNotExist:
         return Response({'error': 'Notification non trouvée'}, status=status.HTTP_404_NOT_FOUND)
+    
+    
 
 # =============================================================================
 # UTILITAIRES
@@ -1321,4 +1374,6 @@ def quick_search(request):
                 }
                 for d in doctors
             ]
+
+            
     return Response(res)

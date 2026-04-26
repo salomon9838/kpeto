@@ -1,7 +1,17 @@
 import React, { useState, useEffect, CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { apiFetch } from '../../api/api';
-import { FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaScalpel, FaUserMd, FaBuilding, FaPhone, FaRedo, FaArrowLeft } from 'react-icons/fa';
+import { apiFetch } from '../api/api';
+import { 
+  FaCheckCircle, 
+  FaExclamationTriangle, 
+  FaInfoCircle, 
+  FaCut,  
+  FaUserMd, 
+  FaBuilding, 
+  FaPhone, 
+  FaRedo, 
+  FaArrowLeft 
+} from 'react-icons/fa';
 
 type NotificationType = 'success' | 'error' | 'info';
 
@@ -178,7 +188,7 @@ export default function InterventionForm() {
     label: { fontWeight: '600', fontSize: '14px', color: '#475569' },
     required: { color: '#ef4444' },
     input: { padding: '12px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '14px', outline: 'none', backgroundColor: '#f8fafc', transition: 'border-color 0.2s', width: '100%', boxSizing: 'border-box' },
-    textarea: { ...{ padding: '12px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '14px', outline: 'none', backgroundColor: '#f8fafc', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit', transition: 'border-color 0.2s', width: '100%', boxSizing: 'border-box' } as CSSProperties },
+    textarea: { padding: '12px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '14px', outline: 'none', backgroundColor: '#f8fafc', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit', transition: 'border-color 0.2s', width: '100%', boxSizing: 'border-box' },
     select: { padding: '12px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '14px', outline: 'none', backgroundColor: 'white', width: '100%', boxSizing: 'border-box' },
     checkbox: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' },
     buttonGroup: { display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '30px', paddingTop: '20px', borderTop: '2px solid #e2e8f0' },
@@ -214,7 +224,7 @@ export default function InterventionForm() {
 
       <header style={styles.header}>
         <button type="button" style={styles.backBtn} onClick={() => navigate('/patient')}><FaArrowLeft /> Retour</button>
-        <h1 style={styles.title}><FaScalpel /> 🔪 Intervention Chirurgicale {consultationNumber && <span style={styles.consultationBadge}>{consultationNumber}</span>}</h1>
+        <h1 style={styles.title}>< FaCut /> 🔪 Intervention Chirurgicale {consultationNumber && <span style={styles.consultationBadge}>{consultationNumber}</span>}</h1>
         <div style={{ width: '100px' }} />
       </header>
 
